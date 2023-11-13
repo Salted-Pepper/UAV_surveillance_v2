@@ -59,6 +59,7 @@ class Polygon:
         poly = shapely.geometry.Polygon(poly_coordinates)
         point = shapely.geometry.Point(x, y)
         return point.within(poly)
+        # return poly.contains(point)
 
     def point_is_on_edge(self, target) -> bool:
         for a, b in zip(self.points, self.points[1:] + [self.points[0]]):
@@ -163,10 +164,10 @@ class Polygon:
         for lamb in np.arange(0.01, 1, 0.01):
             if self.check_if_contains_point(
                     Point(p_1.x * lamb + p_2.x * (1 - lamb), p_1.y * lamb + p_2.y * (1 - lamb))):
-                logger.debug(f"{Point(p_1.x * lamb + p_2.x * (1 - lamb), p_1.y * lamb + p_2.y * (1 - lamb))} "
-                             f"is in the polygon")
+                # logger.debug(f"{Point(p_1.x * lamb + p_2.x * (1 - lamb), p_1.y * lamb + p_2.y * (1 - lamb))} "
+                #              f"is in the polygon")
                 return False
-        logger.debug(f"{p_1} and {p_2} both in polygon. Does not cross polygon.")
+        # logger.debug(f"{p_1} and {p_2} both in polygon. Does not cross polygon.")
         return True
 
     def order_points(self):

@@ -1,6 +1,7 @@
 import matplotlib.patches
 
 import constants
+import general_maths
 from points import Point
 from general_maths import calculate_distance
 
@@ -50,15 +51,8 @@ class Receptor:
 
     def update_plot(self, axes, cmap):
 
-        # if self.patch is not None:
-        #     self.patch.remove()
-
         self.patch.set_facecolor(cmap(self.pheromones / 100))
         self.patch.set_edgecolor(cmap(self.pheromones / 100))
-        #     = matplotlib.patches.Circle((self.location.x, self.location.y),
-        #                                        radius=0.1, color=cmap(self.pheromones / 100),
-        #                                        alpha=0.5, linewidth=None)
-        # axes.add_patch(self.patch)
         return axes
 
     def in_range_of_point(self, point: Point, radius: float) -> bool:
@@ -69,7 +63,7 @@ class Receptor:
 
 
 class ReceptorGrid:
-    def __init__(self, polygons) -> None:
+    def __init__(self, polygons: list) -> None:
         self.receptors = []
 
         self.max_cols = None
@@ -103,11 +97,8 @@ class ReceptorGrid:
                 x_location = min_lat + row * constants.GRID_HEIGHT
                 y_location = min_lon + col * constants.GRID_WIDTH
 
-                in_polygon = False
-                for polygon in polygons:
-                    if polygon.check_if_contains_point(Point(x_location, y_location)):
-                        in_polygon = True
-                        continue
+                in_polygon = general_maths.check_if_point_in_polygons(polygons, Point(x_location, y_location),
+                                                                      exclude_edges=False)
                 self.receptors.append(Receptor(x=x_location, y=y_location, in_polygon=in_polygon))
 
     def select_receptors_in_radius(self, point: Point, radius: float) -> list:

@@ -28,6 +28,7 @@ class Ship:
         # General Properties
         self.ship_id = ship_id
         ship_id += 1
+        self.world = world
 
         self.location: Point or None = None
         self.entry_point = None
@@ -40,14 +41,19 @@ class Ship:
         self.route = None
 
         self.arrival_time = None
-        self.health_points = 100
+        self.health_points = constants.SHIP_HEALTH
 
         # Track what happened to ship
         self.trailing_UAVs = []
 
+        self.retreating = False
+        self.detected = False
+        self.CTL = False
+        self.boarded = False
         self.sunk = False
         self.reached_destination = False
         self.left_AoI = False
+        self.damage_penalty = 0
 
         # Model Inherited Properties
 
@@ -149,7 +155,11 @@ class Ship:
         self.goal_dock = random.choices(world.docks, weights=[d.probability for d in world.docks], k=1)[0]
         self.set_destination(world, self.goal_dock.location)
 
-    def generate_route(self, polygons: list) -> None:
+    def generate_route(self, polygons: list, destination=None) -> None:
+        if destination is None:
+            pass
+        else:
+            self.destination = destination
         self.route = create_route(point_a=self.location, point_b=self.destination,
                                   polygons_to_avoid=copy.deepcopy(polygons))
         self.past_points.append(self.route.points[0])
@@ -173,6 +183,68 @@ class Ship:
         self.marker = self.ax.plot(self.location.x, self.location.y, color=constants.MERCHANT_COLOR,
                                    marker="*", markersize=constants.WORLD_MARKER_SIZE, markeredgecolor="black")
         self.text = self.ax.text(self.location.x, self.location.y, str(self.ship_id), color="white")
+
+    def receive_damage(self, damage: int) -> None:
+        """
+        Receive damage from drone attack and adjust behaviour according to result
+        :param damage:
+        :return:
+        """
+
+        damage = damage + 10 * self.damage_penalty
+        self.health_points -= damage
+        print(f"Ship {self.ship_id} received {damage} damage. New health: {self.health_points}")
+
+        # Set Damage Effects
+        if self.health_points >= 81:
+            return
+        elif self.health_points >= 71:
+            pass
+        elif self.health_points >= 47:
+            self.damage_penalty = 1
+        elif self.health_points >= 21:
+            self.damage_penalty = 2
+        # TODO : Address 9-16 range (CTL but not retreating?)
+        elif self.health_points >= 9:
+            self.CTL = True
+            self.damage_penalty = 2
+        else:
+            self.sinking()
+            return
+
+        # retreat unless health > 81
+        self.start_retreat()
+
+    def sinking(self):
+        """
+        Ship sank, remove from world, update statistics.
+        :return:
+        """
+        print(f"Ship {self.ship_id} sunk at {self.location}.")
+        for uav in self.trailing_UAVs:
+            uav.perceive_ship_sunk()
+
+        self.sunk = True
+        self.route = None
+        self.world.ship_destroyed(self)
+
+        # Remove ship from plot
+        if self.marker is not None:
+            for m in self.marker:
+                m.remove()
+            self.text.remove()
+
+    def start_retreat(self):
+        """
+        Start retreat process, generate a route back out of the area of interest
+        :return:
+        """
+        print(f"Ship {self.ship_id} is retreating with {self.health_points=}")
+        if self.retreating:
+            return
+        else:
+            self.retreating = True
+            self.generate_route(self.world.polygons, destination=self.entry_point)
 
 
 def generate_random_ship(world) -> Ship:

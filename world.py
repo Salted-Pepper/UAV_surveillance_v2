@@ -3,6 +3,8 @@ from polygons import Polygon
 from drones import Drone, Airbase
 from ships import Ship, generate_random_ship
 
+import time
+
 import matplotlib.pyplot as plt
 
 from receptors import ReceptorGrid
@@ -133,14 +135,14 @@ class World:
         # TODO: Automatically make a large set of drones and spread out over the airbases.
         logger.debug("Initiating Drones...")
         self.drones = [Drone(model='test', world=self, airbase=self.airbases[0]),
+                       Drone(model='test-2', world=self, airbase=self.airbases[1], color="yellow"),
+                       Drone(model='test-2', world=self, airbase=self.airbases[0], color="yellow"),
                        Drone(model='test', world=self, airbase=self.airbases[1]),
                        Drone(model='test', world=self, airbase=self.airbases[0]),
+                       Drone(model='test-2', world=self, airbase=self.airbases[1], color="yellow"),
+                       Drone(model='test-2', world=self, airbase=self.airbases[0], color="yellow"),
                        Drone(model='test', world=self, airbase=self.airbases[1]),
-                       Drone(model='test', world=self, airbase=self.airbases[0]),
-                       Drone(model='test', world=self, airbase=self.airbases[1]),
-                       Drone(model='test', world=self, airbase=self.airbases[0]),
-                       Drone(model='test', world=self, airbase=self.airbases[1]),
-                       Drone(model='test', world=self, airbase=self.airbases[0]),
+                       Drone(model='test-2', world=self, airbase=self.airbases[0], color="yellow"),
                        Drone(model='test', world=self, airbase=self.airbases[1]), ]
 
     def plot_world(self, include_receptors=False) -> None:
@@ -187,6 +189,7 @@ class World:
             receptor.update_plot(self.ax, self.receptor_grid.cmap)
 
         self.fig.canvas.draw()
+        self.fig.canvas.flush_events()
         plt.show()
 
     def ship_enters(self, ship: Ship) -> None:
@@ -198,7 +201,6 @@ class World:
         if self.time > 10:
             for drone in self.drones:
                 if drone.grounded:
-                    print(f"Drone {drone.uav_id} launched.")
                     drone.launch(self)
                     return
 
@@ -230,6 +232,9 @@ class World:
         # Remove ships that have reached their destination
         for ship in ships_finished:
             self.current_vessels.remove(ship)
+
+    def ship_destroyed(self, ship):
+        self.current_vessels.remove(ship)
 
     def calculate_drone_movements(self):
         for drone in self.current_airborne_drones:
@@ -293,5 +298,7 @@ world = World(time_delta=1)
 #         if landmass.name == "japan" or landmass.name == "taiwan":
 #             point.add_point_to_plot(constants.axes_plot, text=f"{str(point)}", markersize=5)
 
-for _ in range(20):
+for z in range(100):
     world.time_step()
+    if z > 50:
+        time.sleep(1)

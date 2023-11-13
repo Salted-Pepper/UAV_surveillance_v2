@@ -160,11 +160,11 @@ def check_if_lines_intersect(line_l: list, line_k: list) -> bool:
     k_1 = copy.deepcopy(k_1)
     k_2 = copy.deepcopy(k_2)
 
-    l_1.x, l_2.x = l_1.x*0.999 + l_2.x*0.001, l_1.x*0.001 + l_2.x*0.999
-    l_1.y, l_2.y = l_1.y*0.999 + l_2.y*0.001, l_1.y*0.001 + l_2.y*0.999
+    l_1.x, l_2.x = l_1.x * 0.999 + l_2.x * 0.001, l_1.x * 0.001 + l_2.x * 0.999
+    l_1.y, l_2.y = l_1.y * 0.999 + l_2.y * 0.001, l_1.y * 0.001 + l_2.y * 0.999
 
-    k_1.x, k_2.x = k_1.x*0.999 + k_2.x*0.001, k_1.x*0.001 + k_2.x*0.999
-    k_1.y, k_2.y = k_1.y*0.999 + k_2.y*0.001, k_1.y*0.001 + k_2.y*0.999
+    k_1.x, k_2.x = k_1.x * 0.999 + k_2.x * 0.001, k_1.x * 0.001 + k_2.x * 0.999
+    k_1.y, k_2.y = k_1.y * 0.999 + k_2.y * 0.001, k_1.y * 0.001 + k_2.y * 0.999
 
     return do_intersect(l_1, l_2, k_1, k_2)
 
@@ -177,7 +177,7 @@ def maximize_concavity(path: list, polygons: list) -> list:
     :param polygons:
     :return:
     """
-    logger.debug(f"Maximizing concavity for path {[str(p) for p in path]}")
+    # logger.debug(f"Maximizing concavity for path {[str(p) for p in path]}")
     shorter_route = [path[0]]
 
     i = 0
@@ -242,7 +242,7 @@ def calculate_direction_vector(point_a: object, point_b: object) -> list:
     """
     if point_a is point_b:
         raise ValueError(f"Traversing between same points: {point_a}")
-    normalisation_value = math.sqrt((point_b.x - point_a.x)**2 + (point_b.y - point_a.y)**2)
+    normalisation_value = math.sqrt((point_b.x - point_a.x) ** 2 + (point_b.y - point_a.y) ** 2)
     if normalisation_value == 0:
         logger.warning(f"Normalisation value of 0 - direction from {str(point_a)} to {str(point_b)}")
         return [0, 0]
@@ -273,8 +273,8 @@ def graham_scan(points: list) -> list:
     :param points: List of Points objects
     :return:
     """
-    logger.debug("STARTING GRAHAM SCAN")
-    logger.debug(f"Received points: {[str(point) for point in points]}")
+    # logger.debug("STARTING GRAHAM SCAN")
+    # logger.debug(f"Received points: {[str(point) for point in points]}")
 
     starting_point = find_lowest_point_in_polygon(points)
     points.remove(starting_point)
@@ -340,12 +340,18 @@ def find_closest_reachable_point(target: object, polygon: object) -> object:
         if not obstructed:
             distances.append([p, target.distance_to_point(p)])
         else:
-            logger.debug(f"Unable to reach {p} from {target}.")
+            # logger.debug(f"Unable to reach {p} from {target}.")
+            pass
 
     if len(distances) == 0:
         target.add_point_to_plot(axes=constants.axes_plot, color="yellow", text="T")
-        # TODO: Fix issue where next point is in the convex hull
         raise ValueError(f"Could not make a line from {target} to {[str(p) for p in polygon.points]}")
     closest_point = min(distances, key=lambda x: x[1])[0]
     return closest_point
 
+
+def check_if_point_in_polygons(polygons, point, exclude_edges=True) -> bool:
+    for polygon in polygons:
+        if polygon.check_if_contains_point(point, exclude_edges=exclude_edges):
+            return True
+    return False
