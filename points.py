@@ -69,11 +69,8 @@ class Point:
                       marker=marker, markeredgewidth=marker_edge_width)
         if self.name is None and plot_text:
             axes.text(self.x, self.y, text)
-        elif self.name is not None and not plot_text:
+        elif self.name is not None and plot_text:
             axes.text(self.x, self.y, self.name)
-        elif plot_text:
-            axes.text(self.x, self.y, text)
         else:
             pass
         return axes
-

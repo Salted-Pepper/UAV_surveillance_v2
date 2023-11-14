@@ -16,15 +16,51 @@ logger.setLevel(logging.DEBUG)
 
 # --------------------------------------------- END LOGGER SET UP ------------------------------------------------
 
-def calculate_distance(a: object, b: object) -> float:
+def calculate_distance(a: object, b: object, lon_lat_to_km=True) -> float:
     """
-    Calculates euclidean distance
+    Calculates Euclidean distance
     :param a: Point
     :param b: Point
+    :param lon_lat_to_km: bool, whether distance translated from lon_lat
     :return: Float distance
     """
-    distance = math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2)
+    if lon_lat_to_km:
+        latitudinal_distance_in_km = longitudinal_distance_to_km(a.y, b.y)
+        mean_latitude = (a.y + b.y) / 2
+        longitudinal_distance_in_km = latitudinal_distance_to_km(a.x, b.x, mean_latitude)
+        distance = math.sqrt(latitudinal_distance_in_km ** 2 + longitudinal_distance_in_km ** 2)
+    else:
+        distance = math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2)
     return distance
+
+
+def longitudinal_distance_to_km(lon_1: float, lon_2: float) -> float:
+    return abs((lon_1 - lon_2) * constants.LATITUDE_CONVERSION_FACTOR)
+
+
+def latitudinal_distance_to_km(lat_1: float, lat_2: float, approx_long: float) -> float:
+    return abs((lat_1 - lat_2) * (constants.LONGITUDE_CONVERSION_FACTOR *
+                                  math.cos(math.radians(approx_long))))
+
+
+def km_to_longitudinal_distance(kilometers: float) -> float:
+    """
+    Takes kilometers distance and converts it to approximate longitudinal points
+    :param kilometers:
+    :return:
+    """
+    return kilometers / constants.LATITUDE_CONVERSION_FACTOR
+
+
+def km_to_latitudinal_distance(kilometers: float, approx_long) -> float:
+    """
+    Takes kilometer distance and converts it to approximate latitudinal points
+    :param kilometers:
+    :param approx_long:
+    :return:
+    """
+    return kilometers / (constants.LONGITUDE_CONVERSION_FACTOR *
+                         math.cos(math.radians(approx_long)))
 
 
 def is_between_points(a: object, b: object, tested_point: object) -> bool:
@@ -258,8 +294,8 @@ def find_lowest_point_in_polygon(points: list) -> object:
 def calculate_polar_angle(a: object, b: object) -> float:
     """
     calculate polar angle between two points
-    :param a: Point
-    :param b: Point
+    :param a: First Point
+    :param b: Point relative to first
     :return:
     """
     return math.degrees(math.atan2(b.y - a.y, b.x - a.x))
@@ -289,7 +325,7 @@ def graham_scan(points: list) -> list:
             if next_point_ccw(convex_hull[-2], convex_hull[-1], starting_point):
                 pass
             else:
-                p = convex_hull.pop()
+                convex_hull.pop()
             convex_hull.append(point)
         else:
             if len(convex_hull) > 2:
@@ -301,30 +337,9 @@ def graham_scan(points: list) -> list:
                         TimeoutError(f"Unable to locate next CCW point: {convex_hull}")
 
                     if len(convex_hull) > 0:
-                        p = convex_hull.pop()
+                        convex_hull.pop()
             convex_hull.append(point)
     return convex_hull
-
-
-def sort_convex_hull(convex_hull):
-    # Sort convex hull in increasing direction if possible
-    decreases = 0
-    increases = 0
-    for p_1, p_2 in zip(convex_hull, convex_hull[1:] + [convex_hull[0]]):
-        try:
-            if int(p_2.name) >= int(p_1.name):
-                increases += 1
-            else:
-                decreases += 1
-        # Filter unnamed points (or UAV/start/destination named points)
-        except ValueError:
-            continue
-        except TypeError:
-            continue
-    logger.debug(f"{increases}, {decreases} - hull {[str(p) for p in convex_hull]}")
-    if decreases >= increases:
-        logger.debug("Reversing convex hull")
-        convex_hull.reverse()
 
 
 def find_closest_reachable_point(target: object, polygon: object) -> object:
@@ -333,7 +348,7 @@ def find_closest_reachable_point(target: object, polygon: object) -> object:
     :param polygon: Nearby Polygon object
     :return:
     """
-    logger.debug(f"Finding closest point - polygon is {[str(p) for p in polygon.points]}")
+    # logger.debug(f"Finding closest point - polygon is {[str(p) for p in polygon.points]}")
     distances = []
     for p in polygon.points:
         obstructed = polygon.check_if_line_through_polygon(p, target)

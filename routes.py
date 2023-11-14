@@ -89,43 +89,45 @@ def line_crosses_any_polygon(polygons_to_avoid: list, route) -> (bool, Polygon, 
     return False, 0, 0, 0
 
 
-def extract_route_from_convex_hull(k, l, c_h):
+def extract_route_from_convex_hull(start_point: Point, end_point: Point, c_h: list) -> list:
     """
-    :param k: Starting Point k
-    :param l: End Point l
+    :param start_point: Starting Point k
+    :param end_point: End Point l
     :param c_h: Convex hull containing the points k and l
     :return:
     """
     # logging.debug(f"Extracting Points {k} and {l} out of {[str(p) for p in c_h]}")
-    if l not in c_h:
+    if end_point not in c_h:
         Polygon(c_h).add_polygon_to_plot(constants.axes_plot, color="black", opacity=0.35)
-        l.add_point_to_plot(constants.axes_plot, color="yellow", text="l")
-        k.add_point_to_plot(constants.axes_plot, color="yellow", text="k")
-        logger.error(f"Failed extracting route from {str(k)} to {str(l)} out of {[str(c) for c in c_h]}")
-        raise IndexError(f"{l} not in {[str(p) for p in c_h]}")
-    elif k not in c_h:
+        end_point.add_point_to_plot(constants.axes_plot, color="yellow", text="l")
+        start_point.add_point_to_plot(constants.axes_plot, color="yellow", text="k")
+        logger.error(f"Failed extracting route from {str(start_point)} to {str(end_point)} "
+                     f"out of {[str(c) for c in c_h]}")
+        raise IndexError(f"{end_point} not in {[str(p) for p in c_h]}")
+    elif start_point not in c_h:
         Polygon(c_h).add_polygon_to_plot(constants.axes_plot, color="black", opacity=0.35)
-        l.add_point_to_plot(constants.axes_plot, color="yellow", text="l")
-        k.add_point_to_plot(constants.axes_plot, color="yellow", text="k")
-        logger.error(f"Failed extracting route from {str(k)} to {str(l)} out of {[str(c) for c in c_h]}")
-        raise IndexError(f"{k} not in {[str(p) for p in c_h]}")
+        end_point.add_point_to_plot(constants.axes_plot, color="yellow", text="l")
+        start_point.add_point_to_plot(constants.axes_plot, color="yellow", text="k")
+        logger.error(f"Failed extracting route from {str(start_point)} to {str(end_point)} "
+                     f"out of {[str(c) for c in c_h]}")
+        raise IndexError(f"{start_point} not in {[str(p) for p in c_h]}")
 
-    if c_h.index(l) > c_h.index(k):
+    if c_h.index(end_point) > c_h.index(start_point):
         # Case 1: Simple case, just look at points between the endpoints
-        sub_route_1 = [k] + c_h[c_h.index(k) + 1: c_h.index(l)] + [l]
+        sub_route_1 = [start_point] + c_h[c_h.index(start_point) + 1: c_h.index(end_point)] + [end_point]
 
         # Case 2: We go in other direction and then reverse list
-        points_to_k = c_h[:c_h.index(k)]
-        points_from_l = c_h[c_h.index(l) + 1:]
-        sub_route_2 = [l] + points_from_l + points_to_k + [k]
+        points_to_k = c_h[:c_h.index(start_point)]
+        points_from_l = c_h[c_h.index(end_point) + 1:]
+        sub_route_2 = [end_point] + points_from_l + points_to_k + [start_point]
         sub_route_2.reverse()
-    elif c_h.index(l) < c_h.index(k):
+    elif c_h.index(end_point) < c_h.index(start_point):
         # Case 1: Route inbetween points, but reversed as end point is first
-        sub_route_1 = [l] + c_h[c_h.index(l) + 1:c_h.index(k)] + [k]
+        sub_route_1 = [end_point] + c_h[c_h.index(end_point) + 1:c_h.index(start_point)] + [start_point]
         sub_route_1.reverse()
 
         # Case 2: Past k to start of l
-        sub_route_2 = [k] + c_h[c_h.index(k) + 1:] + c_h[:c_h.index(l)] + [l]
+        sub_route_2 = [start_point] + c_h[c_h.index(start_point) + 1:] + c_h[:c_h.index(end_point)] + [end_point]
     else:
         raise ValueError("Points on route are identical!")
     option_1 = Route(points=sub_route_1)
@@ -257,7 +259,7 @@ def merge_paths(path_precede: list, path_follow: list, target: Point) -> list:
     return path
 
 
-def insert_path_in_c_h(path, c_h, target):
+def insert_path_in_c_h(path: list, c_h: list, target: Point):
     preceding_point = path[0]
     following_point = path[-1]
 
@@ -307,11 +309,9 @@ def re_add_point_to_hull(target: Point, c_h: list, obstacle: Polygon) -> list:
     :param obstacle:
     :return:
     """
-    logger.debug(f"READDING {target} to convex hull - {[str(p) for p in c_h]} - obstacle: {[str(p) for p in c_h]}")
+    # logger.debug(f"READDING {target} to convex hull - {[str(p) for p in c_h]} - obstacle: {[str(p) for p in c_h]}")
     if target in c_h:
         return c_h
-
-    gm.sort_convex_hull(c_h)
 
     # First find a close reachable point on the polygon
     closest_point = gm.find_closest_reachable_point(target, obstacle)
@@ -380,11 +380,11 @@ def re_add_point_to_hull(target: Point, c_h: list, obstacle: Polygon) -> list:
 
     path_follow = create_path_along_polygon_between_points(start_point=point_after, target=target,
                                                            routing_points=following_points, obstacle=obstacle)
-    logger.debug(f"precede {[str(p) for p in path_precede]}, follow: {[str(p) for p in path_follow]}")
+    # logger.debug(f"precede {[str(p) for p in path_precede]}, follow: {[str(p) for p in path_follow]}")
     path = merge_paths(path_precede, path_follow, target)
     insert_path_in_c_h(path, c_h, target)
 
-    logger.debug(f"Returning hull {[str(p) for p in c_h]}")
+    # logger.debug(f"Returning hull {[str(p) for p in c_h]}")
     return c_h
 
 
@@ -426,17 +426,17 @@ def create_convex_hull(obstacle: Polygon, points=None) -> list:
     return convex_hull
 
 
-def add_point_to_poly_points(obstacle: Polygon, k: Point, l: Point, m: Point, list_of_points: list):
+def add_point_to_poly_points(obstacle: Polygon, k: Point, l: Point, m: Point, list_of_points: list) -> None:
     """
     Takes points in a convex hull that belong to a polygon.
     For a single added point that is not part of the polygon (points) -
     add it to the polygon at the most suited (closest) location
     :param list_of_points: List of points to insert the missing point into
-    :param obstacle:
+    :param obstacle: Polygon to avoid
     :param k:
     :param l:
     :param m:
-    :return:
+    :return: Updated the list of points
     """
     distances = []
     poly_points = obstacle.points.copy()
@@ -500,4 +500,3 @@ def create_path_along_polygon_between_points(start_point: Point, target: Point,
 
     raise NotImplementedError(f"Unable to create path along polygon - {start_point=}, {target=},"
                               f" {[str(p) for p in points_to_travel_from]}")
-

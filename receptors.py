@@ -1,3 +1,7 @@
+"""
+Receptors track the pheromones for the spread and contain local statistics (e.g. weather conditions) per region
+"""
+
 import matplotlib.patches
 
 import constants
@@ -12,6 +16,7 @@ import math
 import os
 import logging
 import datetime
+
 date = datetime.date.today()
 logging.basicConfig(level=logging.DEBUG, filename=os.path.join(os.getcwd(), 'logs/navy_log_' + str(date) + '.log'),
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', datefmt="%H:%M:%S")
@@ -27,7 +32,7 @@ class Receptor:
         if in_polygon:
             self.pheromones = 100
             self.decay = False
-        elif not is_in_AoI(Point(x, y)):
+        elif not is_in_area_of_interest(Point(x, y)):
             self.pheromones = 100
             self.decay = False
         else:
@@ -44,13 +49,12 @@ class Receptor:
 
     def initiate_plot(self, axes, cmap):
         self.patch = matplotlib.patches.Circle((self.location.x, self.location.y),
-                                               radius=0.1, color=cmap(self.pheromones / 100),
+                                               radius=0.05, color=cmap(self.pheromones / 100),
                                                alpha=0.5, linewidth=None)
         axes.add_patch(self.patch)
         return axes
 
     def update_plot(self, axes, cmap):
-
         self.patch.set_facecolor(cmap(self.pheromones / 100))
         self.patch.set_edgecolor(cmap(self.pheromones / 100))
         return axes
@@ -89,11 +93,11 @@ class ReceptorGrid:
         num_cols = (max_lon - min_lon) // constants.GRID_WIDTH
         num_rows = (max_lat - min_lat) // constants.GRID_HEIGHT
 
-        self.max_cols = num_cols
-        self.max_rows = num_rows
+        self.max_cols = int(np.ceil(num_cols))
+        self.max_rows = int(np.ceil(num_rows))
 
-        for row in range(num_rows):
-            for col in range(num_cols):
+        for row in range(self.max_rows):
+            for col in range(self.max_cols):
                 x_location = min_lat + row * constants.GRID_HEIGHT
                 y_location = min_lon + col * constants.GRID_WIDTH
 
@@ -131,17 +135,20 @@ class ReceptorGrid:
         max_col = int(min(np.ceil((max_y - (constants.MIN_LONG - constants.LONG_GRID_EXTRA))
                                   / constants.GRID_WIDTH), self.max_cols))
 
-        num_cols = ((constants.MAX_LONG+constants.LONG_GRID_EXTRA) -
-                    (constants.MIN_LONG-constants.LONG_GRID_EXTRA)) // constants.GRID_WIDTH
+        # num_cols = int(np.ceil(((constants.MAX_LONG + constants.LONG_GRID_EXTRA) -
+        #                         (constants.MIN_LONG - constants.LONG_GRID_EXTRA))
+        #                        // constants.GRID_WIDTH))
 
         receptors_in_radius = []
         # logger.debug(f"{min_row=}, {max_row=}, {min_col=}, {max_col=}")
         for row_index in range(min_row, max_row):
             for col_index in range(min_col, max_col):
-                index = num_cols * row_index + col_index
+                index = self.max_cols * row_index + col_index
                 r = self.receptors[index]
                 # logger.debug(f"Considering receptor {r} - In range? {r.in_range_of_point(point, radius)}")
-                if r.in_range_of_point(point, radius):
+
+                # Select larger radius for future steps
+                if r.in_range_of_point(point, radius * constants.RECEPTOR_RADIUS_MULTIPLIER):
                     receptors_in_radius.append(r)
 
         return receptors_in_radius
@@ -160,7 +167,7 @@ class ReceptorGrid:
         """
         receptors = self.select_receptors_in_radius(point, radius)
 
-        if not is_in_AoI(point):
+        if not is_in_area_of_interest(point):
             return math.inf, receptors
 
         for polygon in self.polygons:
@@ -174,8 +181,7 @@ class ReceptorGrid:
         return CoP, receptors
 
 
-def is_in_AoI(point: Point) -> bool:
-
+def is_in_area_of_interest(point: Point) -> bool:
     if constants.MIN_LAT <= point.x <= constants.MAX_LAT and constants.MIN_LONG <= point.y <= constants.MAX_LONG:
         return True
     else:

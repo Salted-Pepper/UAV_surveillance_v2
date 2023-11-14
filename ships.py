@@ -1,3 +1,7 @@
+"""
+Contains information regarding the ship object, behaviour and basic information regarding entering
+"""
+
 import random
 import copy
 from typing import Literal
@@ -22,14 +26,14 @@ ship_id = 0
 class Ship:
     def __init__(self, model: Literal['Cargo', 'Bulk', 'Container'], world):
 
-        global ship_id
-        logger.debug(f"Initializing ship {ship_id} of type {model}")
-
         # General Properties
+        global ship_id
+        logger.debug(f"Initializing ship {ship_id} with type {model}")
         self.ship_id = ship_id
         ship_id += 1
         self.world = world
 
+        # Location and traverse properties
         self.location: Point or None = None
         self.entry_point = None
         self.next_point = None
@@ -40,10 +44,9 @@ class Ship:
 
         self.route = None
 
+        # Parameters to track ship status
         self.arrival_time = None
         self.health_points = constants.SHIP_HEALTH
-
-        # Track what happened to ship
         self.trailing_UAVs = []
 
         self.retreating = False
@@ -92,20 +95,20 @@ class Ship:
         self.destination.name = "Destination"
         self.generate_route(world.polygons)
 
-    def make_move(self, time_delta):
+    def make_move(self):
         """
         Creates the decision the ship makes in this timestep (e.g. continue with route, return, etc.)
         :return:
         """
         # TODO: Add decisions on moving back, being hit, etc. - for now just continue following route
 
-        self.move(time_delta)
+        self.move(self.world.time_delta)
 
     def move(self, time_delta) -> None:
-        # TODO: MAKE AN ACCURATE TRANSFORMATION FROM KM TO LONG/LAT
         distance_to_travel = time_delta * self.speed
 
-        # Use the distance we move to travel past as many points as we can (ensure we don't overshoot a point)
+        # Use the distance we move to travel past as many points on the route as we can
+        # (ensure we don't overshoot a point)
         iterations = 0
         while distance_to_travel > 0 and not self.reached_destination:
             iterations += 1
@@ -134,13 +137,14 @@ class Ship:
                              f"location is {self.location.x, self.location.y}")
             else:
                 logger.debug(f"Ship {self.ship_id} moved from {self.location.x}, {self.location.y}")
-                self.location.x += distance_travelled * direction_vector[0]
-                self.location.y += distance_travelled * direction_vector[1]
+                part_of_route = (distance_travelled/distance_to_next_point)
+                self.location.x = self.location.x * (1 - part_of_route) + self.next_point.x * part_of_route
+                self.location.y = self.location.y * (1 - part_of_route) + self.next_point.y * part_of_route
                 logger.debug(f"to {self.location.x}, {self.location.y}")
 
     def generate_ship_entry_point(self) -> None:
         """
-        Generates random x/y coordinate at which ship enters on the East Coast
+        Generates random y coordinate at which ship enters on the East Coast
         :return:
         """
         longitude = random.uniform(constants.MIN_LONG, constants.MAX_LONG)
@@ -148,14 +152,18 @@ class Ship:
 
         self.entry_point = Point(latitude, longitude)
         self.location = copy.deepcopy(self.entry_point)
-        # self.location.name = "Start"
         logger.debug(f"Ship {self.ship_id} enters at {self.entry_point}")
 
     def generate_ship_end_point(self, world) -> None:
+        """
+        Create destination for ship (One of the Docks in Taiwan)
+        :param world:
+        :return:
+        """
         self.goal_dock = random.choices(world.docks, weights=[d.probability for d in world.docks], k=1)[0]
         self.set_destination(world, self.goal_dock.location)
 
-    def generate_route(self, polygons: list, destination=None) -> None:
+    def generate_route(self, polygons: list, destination: Point = None) -> None:
         if destination is None:
             pass
         else:
@@ -174,12 +182,14 @@ class Ship:
         self.update_plot()
         self.text.remove()
 
-    def update_plot(self):
-        # Plot Marker on the map
+    def remove_from_plot(self):
         if self.marker is not None:
             for m in self.marker:
                 m.remove()
             self.text.remove()
+
+    def update_plot(self):
+        self.remove_from_plot()
         self.marker = self.ax.plot(self.location.x, self.location.y, color=constants.MERCHANT_COLOR,
                                    marker="*", markersize=constants.WORLD_MARKER_SIZE, markeredgecolor="black")
         self.text = self.ax.text(self.location.x, self.location.y, str(self.ship_id), color="white")
@@ -212,7 +222,7 @@ class Ship:
             self.sinking()
             return
 
-        # retreat unless health > 81
+        # retreat unless health > 81 or sunk
         self.start_retreat()
 
     def sinking(self):
@@ -220,21 +230,16 @@ class Ship:
         Ship sank, remove from world, update statistics.
         :return:
         """
-        print(f"Ship {self.ship_id} sunk at {self.location}.")
+        print(f"Ship {self.ship_id} sunk at ({self.location.x}, {self.location.y}).")
         for uav in self.trailing_UAVs:
             uav.perceive_ship_sunk()
 
         self.sunk = True
         self.route = None
         self.world.ship_destroyed(self)
+        self.remove_from_plot()
 
-        # Remove ship from plot
-        if self.marker is not None:
-            for m in self.marker:
-                m.remove()
-            self.text.remove()
-
-    def start_retreat(self):
+    def start_retreat(self) -> None:
         """
         Start retreat process, generate a route back out of the area of interest
         :return:

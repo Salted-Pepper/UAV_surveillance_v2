@@ -4,6 +4,7 @@ import math
 import copy
 
 import constants
+import general_maths
 import routes
 from points import Point
 from routes import create_route
@@ -65,8 +66,8 @@ class Drone:
 
         # Model inherited properties
         # TODO: Tweak pheromone spread and make it model dependent
-        # CONSIDER IF WE MAKE IT DIFFERENT TYPES OF PHEROMONES OR QUANTITIES
         self.pheromone_spread = 100
+        # self.pheromone_type = "?"
 
         self.speed = None
         self.radius = None
@@ -91,114 +92,17 @@ class Drone:
 
     def make(self, model: str) -> None:
         logger.debug(f"Initiating drone of type {model}.")
-        if model == "WLI_GJ1":
-            self.speed = 210
-            self.vulnerability = 3
-            self.ability_to_target = True
-            self.max_ammunition = 6
-            self.radius = 11
-            self.endurance = 20
-            self.range = 1250
-        elif model == "WLI_WD1":
-            self.speed = 210
-            self.vulnerability = 3
-            self.ability_to_target = True
-            self.max_ammunition = 0
-            self.radius = 11
-            self.endurance = 20
-            self.range = 1250
-        elif model == "BZK-007":
-            self.speed = 210
-            self.vulnerability = 3
-            self.ability_to_target = True
-            self.max_ammunition = 0
-            self.radius = 11
-            self.endurance = 16
-            self.range = 250
-        elif model == "CH-4":
-            self.speed = 210
-            self.vulnerability = 3
-            self.ability_to_target = True
-            self.max_ammunition = 6
-            self.radius = 11
-            self.endurance = 40
-            self.range = 1700
-        elif model == "BZK-005":
-            self.speed = 210
-            self.vulnerability = 2
-            self.ability_to_target = False
-            self.max_ammunition = 0
-            self.radius = 83
-            self.endurance = 40
-            self.range = 2000
-        elif model == "TB-001":
-            self.speed = 210
-            self.vulnerability = 2
-            self.ability_to_target = True
-            self.max_ammunition = 6
-            self.radius = 11
-            self.endurance = 35
-            self.range = 2000
-        elif model == "WLII":
-            self.speed = 210
-            self.vulnerability = 2
-            self.ability_to_target = True
-            self.max_ammunition = 6
-            self.radius = 11
-            self.endurance = 32
-            self.range = 2000
-        elif model == "WZ-7":
-            self.speed = 750
-            self.vulnerability = 1
-            self.ability_to_target = False
-            self.max_ammunition = 0
-            self.radius = 83
-            self.endurance = 10
-            self.range = 2000
-        elif model == "WLIII":
-            self.speed = 210
-            self.vulnerability = 2
-            self.endurance = 27
-            self.radius = 83
-            self.max_ammunition = 6
-            self.range = 2000
-        elif model == "WZ-10":
-            self.speed = 750
-            self.vulnerability = 2
-            self.endurance = 10
-            self.radius = 83
-            self.max_ammunition = 6
-            self.range = 2000
-        elif model == "Y-8":
-            self.speed = 210
-            self.vulnerability = 2
-            self.endurance = 10
-            self.radius = 83
-            self.max_ammunition = 6
-            self.range = 2000
-        elif model == "Y-9":
-            self.speed = 210
-            self.vulnerability = 2
-            self.endurance = 20
-            self.radius = 83
-            self.max_ammunition = 6
-            self.range = 2000
-        elif model == "test":
-            self.speed = 1
-            self.vulnerability = 2
-            self.endurance = np.random.uniform(150, 300)
-            self.radius = 1.8
-            self.max_ammunition = 0
-            self.range = 2000
-        elif model == "test-2":
-            self.speed = 1
-            self.vulnerability = 2
-            self.endurance = np.random.uniform(150, 300)
-            self.radius = 1
-            self.max_ammunition = 6
-            self.range = 2000
-
-        self.ammunition = self.max_ammunition
+        for blueprint in constants.MODEL_DICTIONARIES:
+            if blueprint['name'] == model:
+                self.speed = blueprint['speed']
+                self.vulnerability = blueprint['vulnerability']
+                self.ability_to_target = blueprint['ability_to_target']
+                self.max_ammunition = blueprint['max_ammunition']
+                self.ammunition = self.max_ammunition
+                self.radius = blueprint['radius']
+                self.endurance = blueprint['endurance']
+                self.range = blueprint['range']
+                return
 
     def can_continue(self):
         """
@@ -211,15 +115,15 @@ class Drone:
 
         remaining_endurance = self.endurance - self.time_spent_airborne
 
-        # logger.debug(f"Creating route to base for UAV {self.uav_id} at ({self.location.x}, {self.location.y}) "
-        #              f"from {self.location} to {self.base.location}")
+        logger.debug(f"Creating route to base for UAV {self.uav_id} at ({self.location.x}, {self.location.y}) "
+                     f"from {self.location} to {self.base.location}")
         base_route = create_route(self.location, self.base.location, self.polygons_to_avoid)
         time_required_to_return = np.ceil(base_route.length / self.speed)
 
-        # logger.debug(f"UAV {self.uav_id} - remaining endurance: {remaining_endurance}, "
-        #              f"time to return: {time_required_to_return}")
+        logger.debug(f"UAV {self.uav_id} - remaining endurance: {remaining_endurance}, "
+                     f"time to return: {time_required_to_return}")
 
-        if remaining_endurance - self.endurance * constants.SAFETY_ENDURANCE <= time_required_to_return:
+        if remaining_endurance * (1 + constants.SAFETY_ENDURANCE) <= time_required_to_return:
             return False
         else:
             return True
@@ -253,10 +157,12 @@ class Drone:
                 self.update_trail_route()
             self.move_through_route(distance_to_travel)
 
-            if self.trailing:
+            if self.trailing and self.is_near(self.located_ship.location):
                 self.call_action_on_ship()
         else:
             self.make_next_patrol_move(distance_to_travel)
+
+        self.spread_pheromones()
 
         # Check if drone is in legal location
         for polygon in self.world.polygons:
@@ -286,18 +192,22 @@ class Drone:
         # logger.debug(f"Making patrol move for {self.uav_id} - current direction: {self.direction}.   "
         #              f"left: {left_direction}, right: {right_direction}")
 
-        left_point = self.move_in_direction(distance_to_travel, direction=left_direction)
+        left_point = self.move_towards_orientation(distance_to_travel, direction=left_direction)
         CoP_left, left_receptors = self.world.receptor_grid.calculate_CoP(left_point, self.radius)
 
-        straight_point = self.move_in_direction(distance_to_travel, direction=self.direction)
+        straight_point = self.move_towards_orientation(distance_to_travel, direction=self.direction)
         CoP_straight, straight_receptors = self.world.receptor_grid.calculate_CoP(straight_point, self.radius)
 
-        right_point = self.move_in_direction(distance_to_travel, direction=right_direction)
+        right_point = self.move_towards_orientation(distance_to_travel, direction=right_direction)
         CoP_right, right_receptors = self.world.receptor_grid.calculate_CoP(right_point, self.radius)
 
         # logger.debug(f"{CoP_left=}, {CoP_straight=}, {CoP_right=}")
         CoPs = [CoP_left, CoP_straight, CoP_right]
-        probabilities = [1 / CoP for CoP in CoPs]
+        try:
+            probabilities = [1 / CoP for CoP in CoPs]
+        except ZeroDivisionError as e:
+            print(f"UAV {self.uav_id} at {self.location.x}, {self.location.y} has 0 CoP surrounding.")
+            raise ZeroDivisionError(e)
         if sum(probabilities) != 0:
             probabilities = [p / sum(probabilities) for p in probabilities]
         else:
@@ -313,21 +223,21 @@ class Drone:
         #              f"straight:{probabilities[1]:.2f}, right:{probabilities[2]:.2f}, ")
 
         if direction == "left":
-            new_location = self.move_in_direction(distance_to_travel, direction=left_direction)
+            new_location = self.move_towards_orientation(distance_to_travel, direction=left_direction)
             # logger.debug(f"UAV {self.uav_id} Moving left towards {left_direction} - "
             #              f"from {self.location} to  {new_location}")
             self.direction = left_direction
         elif direction == "straight":
-            new_location = self.move_in_direction(distance_to_travel, direction=self.direction)
+            new_location = self.move_towards_orientation(distance_to_travel, direction=self.direction)
             # logger.debug(f"UAV {self.uav_id} Moving straight towards {self.direction} - "
             #              f"from {self.location} to  {new_location}")
         elif direction == "right":
-            new_location = self.move_in_direction(distance_to_travel, direction=right_direction)
+            new_location = self.move_towards_orientation(distance_to_travel, direction=right_direction)
             # logger.debug(f"UAV {self.uav_id} Moving right towards {right_direction} - "
             #              f"from {self.location} to  {new_location}")
             self.direction = right_direction
         else:
-            new_location = self.move_in_direction(distance_to_travel, direction=turn_direction)
+            new_location = self.move_towards_orientation(distance_to_travel, direction=turn_direction)
             # logger.debug(f"UAV {self.uav_id} Turning around - from {self.location} to {new_location}")
             self.direction = turn_direction
 
@@ -374,7 +284,7 @@ class Drone:
         else:
             raise ValueError(f"Unexpected change {change}")
 
-    def move_in_direction(self, distance_to_travel, direction=None) -> Point:
+    def move_towards_orientation(self, distance_to_travel, direction=None) -> Point:
         """
         Used to explore move in POTENTIAL direction
         :param distance_to_travel: Distance to travel in KM
@@ -386,16 +296,30 @@ class Drone:
         if direction is None:
             direction = self.direction
 
+        latitudinal_distance = distance_to_travel / constants.LATITUDE_CONVERSION_FACTOR
+        latitude = self.location.y
+        longitudinal_distance = distance_to_travel / (constants.LONGITUDE_CONVERSION_FACTOR
+                                                      * math.cos(math.radians(latitude)))
+
         if direction == "north":
-            return Point(x, y + distance_to_travel)
+            return Point(x, y + latitudinal_distance)
         elif direction == "east":
-            return Point(x + distance_to_travel, y)
+            return Point(x + longitudinal_distance, y)
         elif direction == "south":
-            return Point(x, y - distance_to_travel)
+            return Point(x, y - latitudinal_distance)
         elif direction == "west":
-            return Point(x - distance_to_travel, y)
+            return Point(x - longitudinal_distance, y)
         elif direction == "reverse":
-            return Point(x - distance_to_travel, y)
+            if self.direction == "north":
+                return Point(x, y - latitudinal_distance)
+            elif self.direction == "east":
+                return Point(x - longitudinal_distance, y)
+            elif self.direction == "south":
+                return Point(x, y + latitudinal_distance)
+            elif self.direction == "west":
+                return Point(x + longitudinal_distance, y)
+            else:
+                raise NotImplementedError(f"Invalid direction {self.direction}")
         else:
             raise ValueError(f"Invalid direction {direction}")
 
@@ -425,12 +349,14 @@ class Drone:
             #              f"to {self.next_point} ({self.next_point.x, self.next_point.y}) ")
             direction_vector = calculate_direction_vector(self.location, self.next_point)
 
-            # logger.debug(f"- dir vector is {np.around(direction_vector, 2)} - dist to travel {distance_to_travel}")
             distance_to_next_point = self.location.distance_to_point(self.next_point)
+            logger.debug(f"- dir vector is {np.around(direction_vector, 2)} - "
+                         f"dist to travel {distance_to_travel} -"
+                         f"dist to next point {distance_to_next_point}")
             distance_travelled = min(distance_to_travel, distance_to_next_point)
             distance_to_travel -= distance_travelled
-            # logger.debug(f"Next point {self.next_point}. Dist to next point {distance_to_next_point: .3f}, "
-            #              f"distance travelled {distance_travelled}")
+            logger.debug(f"Next point {self.next_point}. Dist to next point {distance_to_next_point: .3f}, "
+                         f"distance travelled {distance_travelled}")
 
             if distance_to_next_point <= distance_travelled:
                 self.past_points.append(self.next_point)
@@ -439,16 +365,28 @@ class Drone:
                     self.next_point = self.remaining_points.pop(0)
                 else:
                     self.reached_end_of_route()
-                # logger.debug(
-                #     f"UAV {self.uav_id} has {distance_to_travel} remaining - next point {self.next_point}, "
-                #     f"location is {self.location.x, self.location.y}")
+                logger.debug(
+                    f"UAV {self.uav_id} has {distance_to_travel} remaining - next point {self.next_point}, "
+                    f"location is {self.location.x, self.location.y}")
             else:
-                # logger.debug(f"UAV {self.uav_id} moved from {self.location.x: .3f}, {self.location.y: .3f}")
-                self.location.x += distance_travelled * direction_vector[0]
-                self.location.y += distance_travelled * direction_vector[1]
-                # logger.debug(f"to {self.location.x: .3f}, {self.location.y: .3f}")
+                logger.debug(f"UAV {self.uav_id} moved from {self.location.x: .3f}, {self.location.y: .3f}")
+                # self.move_in_direction(direction_vector, distance_travelled)
+                # self.location.x += distance_travelled * direction_vector[0]
+                # self.location.y += distance_travelled * direction_vector[1]
 
-        self.spread_pheromones()
+                part_of_route = (distance_travelled/distance_to_next_point)
+                self.location.x = self.location.x * (1 - part_of_route) + self.next_point.x * part_of_route
+                self.location.y = self.location.y * (1 - part_of_route) + self.next_point.y * part_of_route
+                logger.debug(f"to {self.location.x: .3f}, {self.location.y: .3f}")
+
+    # def move_in_direction(self, direction_vector: list, distance_travelled: float):
+    #
+    #     latitudinal_movement = general_maths.km_to_latitudinal_distance(distance_travelled * direction_vector[0],
+    #                                                                     approx_long=self.location.y)
+    #     longitudinal_movement = general_maths.km_to_longitudinal_distance(distance_travelled * direction_vector[1])
+    #
+    #     self.location.x += latitudinal_movement
+    #     self.location.y += longitudinal_movement
 
     def spread_pheromones(self):
         locations = []
@@ -508,7 +446,7 @@ class Drone:
                     self.start_trailing(ship)
                 return
             else:
-                print(f"UAV {self.uav_id} missed {ship.ship_id} - detect prob {probability}.")
+                print(f"UAV {self.uav_id} missed ship {ship.ship_id} - detect prob {probability}.")
                 pass
 
     @staticmethod
@@ -516,12 +454,12 @@ class Drone:
         distance = calculate_distance(a=uav_location, b=ship.location)
 
         # TODO: Add weather parameter
-        weather = 0.5  # To implement - see sea state in drive file.
+        weather = 0.77  # To implement - see sea state in drive file.
         height = 10  # Assumed to be 10km
         top_frac_exp = constants.K_CONSTANT * height * ship.RCS * weather
         if distance < 1:
             distance = 1
-        delta = 1 - math.exp(-top_frac_exp / ((distance * 110) ** 3))
+        delta = 1 - math.exp(-top_frac_exp / (distance ** 3))
         return delta
 
     def start_trailing(self, ship: Ship):
@@ -555,13 +493,14 @@ class Drone:
             self.trailing = False
             self.located_ship.trailing_UAVs.remove(self)
             self.located_ship = None
+            self.awaiting_support = False
+            self.support_object = None
             # If it is illegal to chase, give up, start patrolling the area instead
             self.make_next_patrol_move(self.speed * self.world.time_delta)
         else:
             logger.warning(f"UAV {self.uav_id} was not trailing - ordered to stop")
 
     def call_action_on_ship(self):
-
         if self.ammunition > 0:
             self.attack()
         elif not self.awaiting_support:
@@ -611,7 +550,7 @@ class Drone:
         total_length = path_to_point.length + path_to_base.length
         endurance_required = total_length / self.speed
         # See if we have enough endurance remaining, plus small penalty to ensure we can trail
-        if endurance_required * 1.1 > self.endurance:
+        if endurance_required * constants.SAFETY_ENDURANCE > self.endurance:
             return False
         else:
             return True
@@ -699,11 +638,12 @@ class Drone:
         if self.radius_patch is not None:
             self.radius_patch.remove()
 
-        self.radius_patch = matplotlib.patches.Circle((self.location.x, self.location.y), radius=self.radius,
+        self.radius_patch = matplotlib.patches.Circle((self.location.x, self.location.y),
+                                                      radius=self.radius / constants.LATITUDE_CONVERSION_FACTOR,
                                                       color=self.color, alpha=0.1, linewidth=None)
         self.ax.add_patch(self.radius_patch)
         self.marker = self.ax.plot(self.location.x, self.location.y, color=self.color,
-                                   marker="X", markersize=constants.WORLD_MARKER_SIZE, markeredgecolor="black")
+                                   marker="X", markersize=constants.WORLD_MARKER_SIZE - 1, markeredgecolor="black")
 
         self.text = self.ax.text(self.location.x, self.location.y - 0.001, str(self.uav_id), color="white")
 
@@ -723,6 +663,6 @@ class Airbase:
         self.drones_stationed.append(drone)
 
     def add_airbase_to_plot(self, ax):
-        self.location.add_point_to_plot(ax, color=self.color, marker="8",
+        self.location.add_point_to_plot(ax, color=self.color, marker="8", plot_text=False,
                                         marker_edge_width=2, markersize=constants.WORLD_MARKER_SIZE - 4)
         return ax
