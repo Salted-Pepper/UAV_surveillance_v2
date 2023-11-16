@@ -100,7 +100,6 @@ class Ship:
         Creates the decision the ship makes in this timestep (e.g. continue with route, return, etc.)
         :return:
         """
-        # TODO: Add decisions on moving back, being hit, etc. - for now just continue following route
 
         self.move(self.world.time_delta)
 
@@ -118,12 +117,12 @@ class Ship:
                          f"to {self.next_point.x, self.next_point.y} ")
             direction_vector = calculate_direction_vector(self.location, self.next_point)
 
-            logger.debug(f"- dir vector is {direction_vector} - dist to travel {distance_to_travel}")
+            # logger.debug(f"- dir vector is {direction_vector} - dist to travel {distance_to_travel}")
             distance_to_next_point = self.location.distance_to_point(self.next_point)
             distance_travelled = min(distance_to_travel, distance_to_next_point)
             distance_to_travel -= distance_travelled
-            logger.debug(f"Next point {self.next_point}. Dist to next point {distance_to_next_point}, "
-                         f"distance travelled {distance_travelled}")
+            # logger.debug(f"Next point {self.next_point}. Dist to next point {distance_to_next_point}, "
+            #              f"distance travelled {distance_travelled}")
 
             if distance_to_next_point <= distance_travelled:
                 self.past_points.append(self.next_point)
@@ -133,14 +132,14 @@ class Ship:
                     self.next_point = self.remaining_points.pop(0)
                 else:
                     self.reached_end_point()
-                logger.debug(f"Ship {self.ship_id} has {distance_to_travel} remaining - next point {self.next_point}, "
-                             f"location is {self.location.x, self.location.y}")
+                # logger.debug(f"Ship {self.ship_id} has {distance_to_travel} remaining - next point {self.next_point},"
+                #              f" location is {self.location.x, self.location.y}")
             else:
-                logger.debug(f"Ship {self.ship_id} moved from {self.location.x}, {self.location.y}")
+                # logger.debug(f"Ship {self.ship_id} moved from {self.location.x}, {self.location.y}")
                 part_of_route = (distance_travelled/distance_to_next_point)
                 self.location.x = self.location.x * (1 - part_of_route) + self.next_point.x * part_of_route
                 self.location.y = self.location.y * (1 - part_of_route) + self.next_point.y * part_of_route
-                logger.debug(f"to {self.location.x}, {self.location.y}")
+                # logger.debug(f"to {self.location.x}, {self.location.y}")
 
     def generate_ship_entry_point(self) -> None:
         """

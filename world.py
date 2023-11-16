@@ -65,6 +65,8 @@ class World:
         # World Variable Characteristics
         self.weather = None
         self.time_delta = time_delta  # In Hours
+        # Usage of more detailed splits for instances of accuracy
+        self.splits_per_step = constants.UAV_MOVEMENT_SPLITS_P_H
         self.time = 0
 
         # Statistics
@@ -76,7 +78,7 @@ class World:
         self.ax = None
         self.plot_world(True)
 
-        self.drones = None
+        self.drones = []
         self.initiate_drones()
 
     def initiate_land_masses(self) -> None:
@@ -138,18 +140,12 @@ class World:
                          Airbase(name="Base 2", location=Point(120, 32, force_maintain=True))]
 
     def initiate_drones(self) -> None:
-        # TODO: Automatically make a large set of drones and spread out over the airbases.
+        # TODO: Decide method on how to distribute over airbases (50/50 per type? Certain ratios?)
         logger.debug("Initiating Drones...")
-        self.drones = [Drone(model='test', world=self, airbase=self.airbases[0]),
-                       Drone(model='test-2', world=self, airbase=self.airbases[1], color="yellow"),
-                       Drone(model='test-2', world=self, airbase=self.airbases[0], color="yellow"),
-                       Drone(model='test', world=self, airbase=self.airbases[1]),
-                       Drone(model='test', world=self, airbase=self.airbases[0]),
-                       Drone(model='test-2', world=self, airbase=self.airbases[1], color="yellow"),
-                       Drone(model='test-2', world=self, airbase=self.airbases[0], color="yellow"),
-                       Drone(model='test', world=self, airbase=self.airbases[1]),
-                       Drone(model='test-2', world=self, airbase=self.airbases[0], color="yellow"),
-                       Drone(model='test', world=self, airbase=self.airbases[1]), ]
+
+        for model in constants.MODEL_DICTIONARIES:
+            for _ in range(model['number_of_airframes']):
+                self.drones.append(Drone(model=model['name'], world=self, airbase=np.random.choice(self.airbases)))
 
     def plot_world(self, include_receptors=False) -> None:
         self.fig, self.ax = plt.subplots(1, figsize=(constants.PLOT_SIZE, constants.PLOT_SIZE))
@@ -260,8 +256,8 @@ class World:
 
         self.receptor_grid.depreciate_pheromones()
         self.plot_world_update()
-        print(f"Completed iteration {self.time}")
-        logger.debug(f"End of iteration {self.time} \n")
+        print(f"Completed iteration {self.time: .3f}")
+        logger.debug(f"End of iteration {self.time: .3f} \n")
 
 
 class Landmass:

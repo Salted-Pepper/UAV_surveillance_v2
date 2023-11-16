@@ -115,13 +115,13 @@ class Drone:
 
         remaining_endurance = self.endurance - self.time_spent_airborne
 
-        logger.debug(f"Creating route to base for UAV {self.uav_id} at ({self.location.x}, {self.location.y}) "
-                     f"from {self.location} to {self.base.location}")
+        # logger.debug(f"Creating route to base for UAV {self.uav_id} at ({self.location.x}, {self.location.y}) "
+        #              f"from {self.location} to {self.base.location}")
         base_route = create_route(self.location, self.base.location, self.polygons_to_avoid)
         time_required_to_return = np.ceil(base_route.length / self.speed)
 
-        logger.debug(f"UAV {self.uav_id} - remaining endurance: {remaining_endurance}, "
-                     f"time to return: {time_required_to_return}")
+        # logger.debug(f"UAV {self.uav_id} - remaining endurance: {remaining_endurance}, "
+        #              f"time to return: {time_required_to_return}")
 
         if remaining_endurance * (1 + constants.SAFETY_ENDURANCE) <= time_required_to_return:
             return False
@@ -434,12 +434,12 @@ class Drone:
             if len(ship.trailing_UAVs) > 0:
                 continue
 
-            for lamb in np.append(np.arange(0, 1, step=1 / constants.UAV_MOVEMENT_SPLITS), 1):
+            for lamb in np.append(np.arange(0, 1, step=1 / self.world.splits_per_step), 1):
                 uav_location = Point(self.location.x * lamb + self.last_location.x * (1 - lamb),
                                      self.location.y * lamb + self.last_location.y * (1 - lamb))
                 if calculate_distance(a=uav_location, b=ship.location) <= self.radius:
                     detection_probabilities.append(self.roll_detection_check(uav_location, ship))
-            probability = 1 - np.prod([(1 - p) ** (1 / constants.UAV_MOVEMENT_SPLITS) for p in detection_probabilities])
+            probability = 1 - np.prod([(1 - p) ** (1 / self.world.splits_per_step) for p in detection_probabilities])
             if np.random.rand() <= probability:
                 print(f"UAV {self.uav_id} detected {ship.ship_id} - w/ prob {probability}. - {self.routing_to_base=}")
                 if not self.routing_to_base:
@@ -471,7 +471,6 @@ class Drone:
 
     def update_trail_route(self):
         # TODO: Make this territorial waters to avoid rather than world polygons
-        # TODO: Fix issue where UAV trails through landmass
 
         if self.located_ship is not None:
             if self.located_ship.reached_destination:
