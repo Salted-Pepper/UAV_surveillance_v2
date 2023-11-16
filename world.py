@@ -66,7 +66,7 @@ class World:
         self.weather = None
         self.time_delta = time_delta  # In Hours
         # Usage of more detailed splits for instances of accuracy
-        self.splits_per_step = constants.UAV_MOVEMENT_SPLITS_P_H
+        self.splits_per_step = constants.UAV_MOVEMENT_SPLITS_P_H * self.time_delta
         self.time = 0
 
         # Statistics
