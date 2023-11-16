@@ -4,7 +4,6 @@ import math
 import copy
 
 import constants
-import general_maths
 import routes
 from points import Point
 from routes import create_route
@@ -24,12 +23,45 @@ logger.setLevel(logging.DEBUG)
 uav_id = 0
 
 
-class Drone:
-    def __init__(self, model, world, airbase, color=constants.UAV_COLOR):
-        # General properties
+class DroneType:
+    def __init__(self, name: str, amount: int):
+        self.name = name
+        self.total = amount
 
+        self.airborne = 0
+        self.destroyed = 0
+        self.grounded = amount
+        self.under_maintenance = 0
+
+        self.utilization_rate = None
+
+    def drone_landed(self):
+        self.airborne -= 1
+        self.grounded += 1
+        self.under_maintenance += 1
+
+    def calculate_utilization_rate(self):
+        # TODO: Implement function for utilization rate
+        self.utilization_rate = 0.3
+
+    def reached_utilization_rate(self) -> bool:
+        """
+        Checks if we should launch more drones to satisfy the utilization rate
+        :return:
+        """
+        if self.airborne / (self.total - self.destroyed) < self.utilization_rate:
+            return True
+        else:
+            return False
+
+
+class Drone:
+    def __init__(self, model: str, drone_type: DroneType, world, airbase,
+                 color: str = constants.UAV_COLOR):
+        # General properties
         global uav_id
         self.uav_id = uav_id
+        self.drone_type = drone_type
         uav_id += 1
         self.location = copy.deepcopy(airbase.location)
         self.base = airbase
@@ -57,10 +89,11 @@ class Drone:
         self.awaiting_support = False  # Trailing but unable to attack, waiting until support arrives
         self.support_object = None
 
-        self.under_maintenance = False
-        self.estimated_finish_maintenance = None
-
         self.health_points = constants.UAV_HEALTH
+
+        self.under_maintenance = False
+        self.maintenance_time = None
+        self.time_maintenance_finish = 0
 
         self.name = model
 
@@ -102,7 +135,16 @@ class Drone:
                 self.radius = blueprint['radius']
                 self.endurance = blueprint['endurance']
                 self.range = blueprint['range']
+
+                self.calculate_maintenance_time()
                 return
+
+    def calculate_maintenance_time(self) -> None:
+        """
+        Calculates maintenance times for the type of UAV
+        :return:
+        """
+        self.maintenance_time = 3.4 + 0.68 * self.endurance
 
     def can_continue(self):
         """
@@ -184,7 +226,7 @@ class Drone:
                                       f"Last location = ({self.last_location.x}, {self.last_location.y}). \n"
                                       f"this falls in polygon {[str(p) for p in polygon.points]}")
 
-    def make_next_patrol_move(self, distance_to_travel):
+    def make_next_patrol_move(self, distance_to_travel: float):
         left_direction = self.report_new_direction("left")
         right_direction = self.report_new_direction("right")
         turn_direction = self.report_new_direction("turn")
@@ -202,9 +244,9 @@ class Drone:
         CoP_right, right_receptors = self.world.receptor_grid.calculate_CoP(right_point, self.radius)
 
         # logger.debug(f"{CoP_left=}, {CoP_straight=}, {CoP_right=}")
-        CoPs = [CoP_left, CoP_straight, CoP_right]
+        concentration_of_pheromones = [CoP_left, CoP_straight, CoP_right]
         try:
-            probabilities = [1 / CoP for CoP in CoPs]
+            probabilities = [1 / CoP for CoP in concentration_of_pheromones]
         except ZeroDivisionError as e:
             print(f"UAV {self.uav_id} at {self.location.x}, {self.location.y} has 0 CoP surrounding.")
             raise ZeroDivisionError(e)
@@ -284,7 +326,7 @@ class Drone:
         else:
             raise ValueError(f"Unexpected change {change}")
 
-    def move_towards_orientation(self, distance_to_travel, direction=None) -> Point:
+    def move_towards_orientation(self, distance_to_travel: float, direction=None) -> Point:
         """
         Used to explore move in POTENTIAL direction
         :param distance_to_travel: Distance to travel in KM
@@ -374,7 +416,7 @@ class Drone:
                 # self.location.x += distance_travelled * direction_vector[0]
                 # self.location.y += distance_travelled * direction_vector[1]
 
-                part_of_route = (distance_travelled/distance_to_next_point)
+                part_of_route = (distance_travelled / distance_to_next_point)
                 self.location.x = self.location.x * (1 - part_of_route) + self.next_point.x * part_of_route
                 self.location.y = self.location.y * (1 - part_of_route) + self.next_point.y * part_of_route
                 logger.debug(f"to {self.location.x: .3f}, {self.location.y: .3f}")
@@ -390,7 +432,7 @@ class Drone:
 
     def spread_pheromones(self):
         locations = []
-        for lamb in np.arange(0, 1, 1 / constants.UAV_MOVEMENT_SPLITS):
+        for lamb in np.arange(0, 1, 1 / self.world.splits_per_step):
             x_loc = self.location.x * lamb + self.last_location.x * (1 - lamb)
             y_loc = self.location.y * lamb + self.last_location.y * (1 - lamb)
             locations.append(Point(x_loc, y_loc))
@@ -401,7 +443,7 @@ class Drone:
             for receptor in receptors:
                 if receptor.decay:  # To Check if receptor is not a boundary point
                     receptor.pheromones += ((1 / max(location.distance_to_point(receptor.location), 0.1)) *
-                                            (self.pheromone_spread / constants.UAV_MOVEMENT_SPLITS))
+                                            (self.pheromone_spread / self.world.splits_per_step))
                     receptor.update_plot(self.world.ax, self.world.receptor_grid.cmap)
 
     def reached_end_of_route(self) -> None:
@@ -503,7 +545,7 @@ class Drone:
         if self.ammunition > 0:
             self.attack()
         elif not self.awaiting_support:
-            self.call_in_attacking_UAV()
+            self.call_in_attacking_drone()
 
     def attack(self):
         """
@@ -520,7 +562,7 @@ class Drone:
     def perceive_ship_sunk(self):
         self.trailing = False
 
-    def call_in_attacking_UAV(self):
+    def call_in_attacking_drone(self):
         options = []
         for uav in self.world.current_airborne_drones:
             if uav.ammunition > 0 and uav.reach_and_return(self.located_ship.location):
@@ -590,6 +632,7 @@ class Drone:
         self.grounded = True
         logger.debug(f"Removing {self} from current airborne UAVs")
         self.world.current_airborne_drones.remove(self)
+        self.drone_type.drone_landed()
 
         self.past_points = []
         self.time_spent_airborne = 0
@@ -614,18 +657,27 @@ class Drone:
 
     def generate_patrol_location(self) -> Point:
         points = [self.sample_random_patrol_start() for _ in range(constants.PATROL_LOCATIONS)]
-        CoPs = []
+        concentration_of_pheromones = []
         for point in points:
             cop, _ = self.world.receptor_grid.calculate_CoP(point, self.radius)
-            CoPs.append(cop)
+            concentration_of_pheromones.append(cop)
         # currently selecting minimal location - could do weight based sampling instead
-        min_index = CoPs.index(min(CoPs))
+        min_index = concentration_of_pheromones.index(min(concentration_of_pheromones))
         return points[min_index]
 
     def start_maintenance(self):
         self.under_maintenance = True
-        required_time = (3.4 * (60 / self.world.time_delta) + 0.68 * self.endurance)
-        self.estimated_finish_maintenance = self.world.time + required_time
+        self.time_maintenance_finish = self.world.time + self.maintenance_time
+
+    def check_if_complete_maintenance(self):
+        if self.world.time >= self.time_maintenance_finish:
+            self.complete_maintenance()
+
+    def complete_maintenance(self):
+        self.under_maintenance = False
+        self.ammunition = self.max_ammunition
+        self.health_points = constants.UAV_HEALTH
+        self.time_spent_airborne = 0
 
     def update_plot(self):
         if self.marker is not None:
@@ -658,7 +710,7 @@ class Airbase:
     def __str__(self):
         return f"Airbase {self.name} at {self.location}"
 
-    def station_drone(self, drone: Drone):
+    def station_drone(self, drone):
         self.drones_stationed.append(drone)
 
     def add_airbase_to_plot(self, ax):

@@ -6,7 +6,7 @@ A time delta of 1 corresponds to jumps of 1 hour real time.
 
 from points import Point
 from polygons import Polygon
-from drones import Drone, Airbase
+from drones import Drone, DroneType, Airbase
 from ships import Ship, generate_random_ship
 
 import time
@@ -79,6 +79,7 @@ class World:
         self.plot_world(True)
 
         self.drones = []
+        self.drone_types = []
         self.initiate_drones()
 
     def initiate_land_masses(self) -> None:
@@ -144,8 +145,14 @@ class World:
         logger.debug("Initiating Drones...")
 
         for model in constants.MODEL_DICTIONARIES:
+            drone_type = DroneType(name=model['name'], amount=model['number_of_airframes'])
+            self.drone_types.append(drone_type)
+
             for _ in range(model['number_of_airframes']):
-                self.drones.append(Drone(model=model['name'], world=self, airbase=np.random.choice(self.airbases)))
+                self.drones.append(Drone(model=model['name'], drone_type=drone_type,
+                                         world=self, airbase=np.random.choice(self.airbases)))
+
+            drone_type.calculate_utilization_rate()
 
     def plot_world(self, include_receptors=False) -> None:
         self.fig, self.ax = plt.subplots(1, figsize=(constants.PLOT_SIZE, constants.PLOT_SIZE))
@@ -202,7 +209,7 @@ class World:
         # TODO: Work out sending/launching of drones (currently launches one each turn)
         if self.time > 10:
             for drone in self.drones:
-                if drone.grounded:
+                if drone.grounded and not drone.under_maintenance and drone.drone_type.reached_utilization_rate():
                     drone.launch(self)
                     return
 
