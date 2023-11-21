@@ -7,10 +7,13 @@ DEBUG_MODE = False
 # ---- PERFORMANCE MEASURING ----
 
 time_spent_creating_routes = 0
-time_spent_calculating_direction = 0
 time_spent_calculating_distance = 0
 time_spent_making_patrol_moves = 0
 time_spent_observing_area = 0
+time_spreading_pheromones = 0
+time_spent_uav_route_move = 0
+time_spent_checking_uav_return = 0
+time_spent_depreciating_pheromones = 0
 
 # ---- World Constants ----
 CARGO_DAILY_ARRIVAL_MEAN = 30

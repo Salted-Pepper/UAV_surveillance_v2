@@ -283,22 +283,16 @@ def calculate_direction_vector(point_a: object, point_b: object) -> list:
     :param point_b: point of arrival
     :return:
     """
-    t_0 = time.perf_counter()
-
     if point_a is point_b:
         raise ValueError(f"Traversing between same points: {point_a}")
     normalisation_value = math.sqrt((point_b.x - point_a.x) ** 2 + (point_b.y - point_a.y) ** 2)
     if normalisation_value == 0:
         logger.warning(f"Normalisation value of 0 - direction from {str(point_a)} to {str(point_b)}")
 
-        t_1 = time.perf_counter()
-        constants.time_spent_calculating_direction += (t_1 - t_0)
         return [0, 0]
     x_change = (point_b.x - point_a.x) / normalisation_value
     y_change = (point_b.y - point_a.y) / normalisation_value
 
-    t_1 = time.perf_counter()
-    constants.time_spent_calculating_direction += (t_1 - t_0)
     return [x_change, y_change]
 
 

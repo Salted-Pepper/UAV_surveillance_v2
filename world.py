@@ -45,6 +45,7 @@ class World:
         # timer functions
         self.time_spent_on_UAVs = 0
         self.time_spent_on_navy = 0
+        self.time_spent_plotting = 0
 
         # Create Geography
         self.landmasses = []
@@ -72,6 +73,7 @@ class World:
         self.time_delta = time_delta  # In Hours
         # Usage of more detailed splits for instances of accuracy
         self.splits_per_step = int(np.ceil(constants.UAV_MOVEMENT_SPLITS_P_H * self.time_delta))
+        print(f"SPLITS PER TIME DELTA SET AT {self.splits_per_step}")
         self.world_time = 0
 
         # Statistics
@@ -259,14 +261,28 @@ class World:
         print(f"Starting iteration {self.world_time: .3f}")
         self.world_time += self.time_delta
 
+        t_0 = time.perf_counter()
         self.create_arriving_ships()
         self.calculate_ship_movements()
+        t_1 = time.perf_counter()
+        self.time_spent_on_navy += (t_1 - t_0)
 
+        t_0 = time.perf_counter()
         self.launch_drone()
         self.calculate_drone_movements()
+        t_1 = time.perf_counter()
+        self.time_spent_on_UAVs += (t_1 - t_0)
 
+        t_0 = time.perf_counter()
         self.receptor_grid.depreciate_pheromones()
+        t_1 = time.perf_counter()
+        constants.time_spent_depreciating_pheromones += (t_1 - t_0)
+
+        t_0 = time.perf_counter()
         self.plot_world_update()
+        t_1 = time.perf_counter()
+        self.time_spent_plotting += (t_1 - t_0)
+
         logger.debug(f"End of iteration {self.world_time: .3f} \n")
 
 
@@ -304,25 +320,21 @@ class Dock:
 
 
 t_0 = time.perf_counter()
-world = World(time_delta=0.3)
+world = World(time_delta=0.2)
 
-# for landmass in world.landmasses:
-#     for point in landmass.polygon.points:
-#         if landmass.name == "japan" or landmass.name == "taiwan":
-#             point.add_point_to_plot(constants.axes_plot, text=f"{str(point)}", markersize=5)
-
-for z in range(200):
+for z in range(1000):
     world.time_step()
-    # if z > 50:
-    #     time.sleep(1)
 t_1 = time.perf_counter()
 
-print(f"TOTAL TIME: {t_1 - t_0} \n"
-      f"Time spent on Navy: {world.time_spent_on_navy/60} \n "
-      f"Time spent on UAVs: {world.time_spent_on_UAVs/60} \n")
+print(f"TOTAL TIME: {(t_1 - t_0) / 60} \n"
+      f"Time spent on Navy: {world.time_spent_on_navy/60} \n"
+      f"Time spent on UAVs: {world.time_spent_on_UAVs/60} \n"
+      f"Time spent deprecating pheromones: {constants.time_spent_depreciating_pheromones / 60} \n"
+      f"Time spent plotting: {world.time_spent_plotting/60} \n")
 print(f"Time spent on: \n"
       f"Creating routes: {constants.time_spent_creating_routes / 60} \n"
-      f"Calculating direction: {constants.time_spent_calculating_direction / 60} \n"
+      f"UAV Moving through route: {constants.time_spent_uav_route_move / 60} \n"
       f"Calculating distance: {constants.time_spent_calculating_distance / 60} \n"
       f"Making Patrol Moves: {constants.time_spent_making_patrol_moves / 60} \n"
-      f"Observing Area: {constants.time_spent_observing_area / 60} \n")
+      f"Observing Area: {constants.time_spent_observing_area / 60} \n"
+      f"UAV return checks: {constants.time_spent_checking_uav_return /60}")
