@@ -1,7 +1,16 @@
-
+# ---- DEBUG PARAMETERS ----
 axes_plot = None
 
 ITERATION_LIMIT = 100
+DEBUG_MODE = False
+
+# ---- PERFORMANCE MEASURING ----
+
+time_spent_creating_routes = 0
+time_spent_calculating_direction = 0
+time_spent_calculating_distance = 0
+time_spent_making_patrol_moves = 0
+time_spent_observing_area = 0
 
 # ---- World Constants ----
 CARGO_DAILY_ARRIVAL_MEAN = 30
@@ -23,7 +32,7 @@ LAT_GRID_EXTRA = 8
 LONG_GRID_EXTRA = 8
 
 # ---- Pheromone ----
-PHEROMONE_DEPRECIATION_FACTOR = 0.99
+PHEROMONE_DEPRECIATION_FACTOR_PER_TIME_DELTA = 0.99
 RECEPTOR_RADIUS_MULTIPLIER = 10
 
 # ---- GEO Constants ----
@@ -45,6 +54,8 @@ PATROL_MAX_LAT = 150
 
 PATROL_MIN_LONG = 10
 PATROL_MAX_LONG = 40
+
+UAV_AVAILABILITY = 0.7
 
 MODEL_DICTIONARIES = [{"name": "WLI_GJI",
                        "speed": 210,
@@ -188,7 +199,7 @@ MODEL_DICTIONARIES = [{"name": "WLI_GJI",
                       ]
 
 # ---- Detection Parameters ----
-UAV_MOVEMENT_SPLITS_P_H = 5 * 60  # Splits per hour - gets recalculated per timedelta
+UAV_MOVEMENT_SPLITS_P_H = 24  # (24 is at least 2 every 5 mins) Splits per hour - gets recalculated per timedelta
 PATROL_LOCATIONS = 10
 
 K_CONSTANT = 39_633

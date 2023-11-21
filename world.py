@@ -3,24 +3,25 @@ Ties all the agents together for a single simulation and collects the data.
 A world has a set time delta, which sets the time-jumps per simulation step.
 A time delta of 1 corresponds to jumps of 1 hour real time.
 """
+# TODO: Improve overall efficiency:
+# Ideas: Do not always recalculate a route back for drones
+# ..
 
-from points import Point
-from polygons import Polygon
-from drones import Drone, DroneType, Airbase
-from ships import Ship, generate_random_ship
-
+import datetime
+import logging
+import os
 import time
 
 import matplotlib.pyplot as plt
+import numpy as np
 
-from receptors import ReceptorGrid
 import constants
 import constants_coords
-
-import numpy as np
-import datetime
-import os
-import logging
+from drones import Drone, DroneType, Airbase
+from points import Point
+from polygons import Polygon
+from receptors import ReceptorGrid
+from ships import Ship, generate_random_ship
 
 if not os.path.exists("logs"):
     os.makedirs("logs")
@@ -41,6 +42,10 @@ logging.getLogger("GEOPOLYGON").setLevel(logging.WARNING)
 
 class World:
     def __init__(self, time_delta: float):
+        # timer functions
+        self.time_spent_on_UAVs = 0
+        self.time_spent_on_navy = 0
+
         # Create Geography
         self.landmasses = []
         self.china_polygon = None
@@ -66,8 +71,8 @@ class World:
         self.weather = None
         self.time_delta = time_delta  # In Hours
         # Usage of more detailed splits for instances of accuracy
-        self.splits_per_step = constants.UAV_MOVEMENT_SPLITS_P_H * self.time_delta
-        self.time = 0
+        self.splits_per_step = int(np.ceil(constants.UAV_MOVEMENT_SPLITS_P_H * self.time_delta))
+        self.world_time = 0
 
         # Statistics
         self.current_vessels = []
@@ -124,7 +129,7 @@ class World:
                                       color=constants_coords.CHINA_COLOR)
 
     def initiate_receptor_grid(self) -> None:
-        self.receptor_grid = ReceptorGrid(self.polygons + [self.china_polygon.polygon])
+        self.receptor_grid = ReceptorGrid(self.polygons + [self.china_polygon.polygon], self)
 
     def initiate_docks(self) -> None:
         self.docks = [Dock(name="Kaohsiung", location=Point(120.30, 22.44, name="Kaohsiung", force_maintain=True),
@@ -145,18 +150,21 @@ class World:
         logger.debug("Initiating Drones...")
 
         for model in constants.MODEL_DICTIONARIES:
-            drone_type = DroneType(name=model['name'], amount=model['number_of_airframes'])
+            drone_type = DroneType(name=model['name'],
+                                   amount=np.floor(model['number_of_airframes'] * constants.UAV_AVAILABILITY))
             self.drone_types.append(drone_type)
 
             for _ in range(model['number_of_airframes']):
-                self.drones.append(Drone(model=model['name'], drone_type=drone_type,
-                                         world=self, airbase=np.random.choice(self.airbases)))
+                new_drone = Drone(model=model['name'], drone_type=drone_type,
+                                  world=self, airbase=np.random.choice(self.airbases))
+                self.drones.append(new_drone)
+                drone_type.drones.append(new_drone)
 
             drone_type.calculate_utilization_rate()
 
     def plot_world(self, include_receptors=False) -> None:
         self.fig, self.ax = plt.subplots(1, figsize=(constants.PLOT_SIZE, constants.PLOT_SIZE))
-        self.ax.set_title(f"Sea Map - time is {self.time}")
+        self.ax.set_title(f"Sea Map - time is {self.world_time}")
         self.ax.set_facecolor("#2596be")
         self.ax.set_xlim(left=constants.MIN_LAT, right=constants.MAX_LAT)
         self.ax.set_xlabel("Latitude")
@@ -187,7 +195,7 @@ class World:
         self.fig.canvas.draw()
 
     def plot_world_update(self) -> None:
-        self.ax.set_title(f"Sea Map - time is {self.time: .3f}")
+        self.ax.set_title(f"Sea Map - time is {self.world_time: .3f}")
         for ship in self.current_vessels:
             ship.update_plot()
 
@@ -207,11 +215,9 @@ class World:
 
     def launch_drone(self) -> None:
         # TODO: Work out sending/launching of drones (currently launches one each turn)
-        if self.time > 10:
-            for drone in self.drones:
-                if drone.grounded and not drone.under_maintenance and drone.drone_type.reached_utilization_rate():
-                    drone.launch(self)
-                    return
+        for drone_type in self.drone_types:
+            if not drone_type.reached_utilization_rate():
+                drone_type.launch_drone_of_type(self)
 
     def calculate_ships_entering(self) -> int:
         """
@@ -250,21 +256,18 @@ class World:
             drone.move()
 
     def time_step(self) -> None:
-        self.time += self.time_delta
+        print(f"Starting iteration {self.world_time: .3f}")
+        self.world_time += self.time_delta
 
         self.create_arriving_ships()
         self.calculate_ship_movements()
 
         self.launch_drone()
         self.calculate_drone_movements()
-        for drone in self.current_airborne_drones:
-            if drone.patrolling:
-                drone.observe_area(self.current_vessels)
 
         self.receptor_grid.depreciate_pheromones()
         self.plot_world_update()
-        print(f"Completed iteration {self.time: .3f}")
-        logger.debug(f"End of iteration {self.time: .3f} \n")
+        logger.debug(f"End of iteration {self.world_time: .3f} \n")
 
 
 class Landmass:
@@ -300,6 +303,7 @@ class Dock:
         return axes
 
 
+t_0 = time.perf_counter()
 world = World(time_delta=0.3)
 
 # for landmass in world.landmasses:
@@ -307,7 +311,18 @@ world = World(time_delta=0.3)
 #         if landmass.name == "japan" or landmass.name == "taiwan":
 #             point.add_point_to_plot(constants.axes_plot, text=f"{str(point)}", markersize=5)
 
-for z in range(500):
+for z in range(200):
     world.time_step()
     # if z > 50:
     #     time.sleep(1)
+t_1 = time.perf_counter()
+
+print(f"TOTAL TIME: {t_1 - t_0} \n"
+      f"Time spent on Navy: {world.time_spent_on_navy/60} \n "
+      f"Time spent on UAVs: {world.time_spent_on_UAVs/60} \n")
+print(f"Time spent on: \n"
+      f"Creating routes: {constants.time_spent_creating_routes / 60} \n"
+      f"Calculating direction: {constants.time_spent_calculating_direction / 60} \n"
+      f"Calculating distance: {constants.time_spent_calculating_distance / 60} \n"
+      f"Making Patrol Moves: {constants.time_spent_making_patrol_moves / 60} \n"
+      f"Observing Area: {constants.time_spent_observing_area / 60} \n")

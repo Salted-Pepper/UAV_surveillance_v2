@@ -10,6 +10,8 @@ from routes import create_route
 from general_maths import calculate_distance, calculate_direction_vector
 from ships import Ship
 
+import time
+
 import os
 import logging
 import datetime
@@ -24,9 +26,11 @@ uav_id = 0
 
 
 class DroneType:
+
     def __init__(self, name: str, amount: int):
         self.name = name
         self.total = amount
+        self.drones = []
 
         self.airborne = 0
         self.destroyed = 0
@@ -40,16 +44,29 @@ class DroneType:
         self.grounded += 1
         self.under_maintenance += 1
 
-    def calculate_utilization_rate(self):
+    def launch_drone_of_type(self, world) -> None:
+
+        while not self.reached_utilization_rate():
+            drone_launched = False
+            for drone in self.drones:
+                if drone.grounded and not drone.under_maintenance:
+                    drone.launch(world)
+                    drone_launched = True
+                    break
+            if not drone_launched:
+                logger.debug(f"No drones of type {self.name} available for launch. Can not satisfy utilization rate")
+                return
+
+    def calculate_utilization_rate(self) -> None:
         # TODO: Implement function for utilization rate
-        self.utilization_rate = 0.3
+        self.utilization_rate = 0.15
 
     def reached_utilization_rate(self) -> bool:
         """
         Checks if we should launch more drones to satisfy the utilization rate
         :return:
         """
-        if self.airborne / (self.total - self.destroyed) < self.utilization_rate:
+        if (self.airborne+1) / (self.total - self.destroyed) > self.utilization_rate:
             return True
         else:
             return False
@@ -157,6 +174,12 @@ class Drone:
 
         remaining_endurance = self.endurance - self.time_spent_airborne
 
+        # Check heuristically - to prevent route creation for all instances
+        dist_to_base = self.location.distance_to_point(self.base.location)
+        required_endurance_max = (2*dist_to_base) / self.speed
+        if required_endurance_max < remaining_endurance:
+            return True
+
         # logger.debug(f"Creating route to base for UAV {self.uav_id} at ({self.location.x}, {self.location.y}) "
         #              f"from {self.location} to {self.base.location}")
         base_route = create_route(self.location, self.base.location, self.polygons_to_avoid)
@@ -164,7 +187,6 @@ class Drone:
 
         # logger.debug(f"UAV {self.uav_id} - remaining endurance: {remaining_endurance}, "
         #              f"time to return: {time_required_to_return}")
-
         if remaining_endurance * (1 + constants.SAFETY_ENDURANCE) <= time_required_to_return:
             return False
         else:
@@ -181,7 +203,7 @@ class Drone:
         #              f"trailing? : {self.trailing}")
         distance_to_travel = self.speed * self.world.time_delta
         self.last_location = copy.deepcopy(self.location)
-        if not self.can_continue() and not self.routing_to_base:
+        if not self.routing_to_base and not self.can_continue():
             self.return_to_base()
             self.time_spent_airborne += self.world.time_delta
             return
@@ -207,26 +229,28 @@ class Drone:
         self.spread_pheromones()
 
         # Check if drone is in legal location
-        for polygon in self.world.polygons:
-            if polygon.check_if_contains_point(P=self.location, exclude_edges=True):
-                self.location.add_point_to_plot(axes=constants.axes_plot, color="yellow")
-                self.last_location.add_point_to_plot(axes=constants.axes_plot, color="purple", text="LAST")
-                self.next_point.add_point_to_plot(axes=constants.axes_plot, color="black", text="NEXT")
-                for p in self.past_points:
-                    p.add_point_to_plot(axes=constants.axes_plot, color="black", text=p.point_id)
-                if self.route is not None:
-                    self.route.add_route_to_plot(axes=constants.axes_plot)
-                raise PermissionError(f"UAV {self.uav_id} at illegal location: "
-                                      f"({self.location.x: .3f}, {self.location.y: .3f}). \n"
-                                      f"Route is {[str(p) for p in self.route.points]} "
-                                      f"to start: {self.routing_to_start}, "
-                                      f"last point: {self.last_location} "
-                                      f"to base: {self.routing_to_base}, "
-                                      f"trailing? : {self.trailing}. "
-                                      f"Last location = ({self.last_location.x}, {self.last_location.y}). \n"
-                                      f"this falls in polygon {[str(p) for p in polygon.points]}")
+        if constants.DEBUG_MODE:
+            for polygon in self.world.polygons:
+                if polygon.check_if_contains_point(P=self.location, exclude_edges=True):
+                    self.location.add_point_to_plot(axes=constants.axes_plot, color="yellow")
+                    self.last_location.add_point_to_plot(axes=constants.axes_plot, color="purple", text="LAST")
+                    self.next_point.add_point_to_plot(axes=constants.axes_plot, color="black", text="NEXT")
+                    for p in self.past_points:
+                        p.add_point_to_plot(axes=constants.axes_plot, color="black", text=p.point_id)
+                    if self.route is not None:
+                        self.route.add_route_to_plot(axes=constants.axes_plot)
+                    raise PermissionError(f"UAV {self.uav_id} at illegal location: "
+                                          f"({self.location.x: .3f}, {self.location.y: .3f}). \n"
+                                          f"Route is {[str(p) for p in self.route.points]} "
+                                          f"to start: {self.routing_to_start}, "
+                                          f"last point: {self.last_location} "
+                                          f"to base: {self.routing_to_base}, "
+                                          f"trailing? : {self.trailing}. "
+                                          f"Last location = ({self.last_location.x}, {self.last_location.y}). \n"
+                                          f"this falls in polygon {[str(p) for p in polygon.points]}")
 
     def make_next_patrol_move(self, distance_to_travel: float):
+        t_0 = time.perf_counter()
         left_direction = self.report_new_direction("left")
         right_direction = self.report_new_direction("right")
         turn_direction = self.report_new_direction("turn")
@@ -291,7 +315,12 @@ class Drone:
                                       f"to ({self.location.x}, {self.last_location.y}) "
                                       f"which is in a polygon - {self.trailing=}, {self.routing_to_base=}"
                                       f"{self.routing_to_start=}, {self.patrolling=}")
+
+        self.observe_area(self.world.current_vessels)
         self.spread_pheromones()
+
+        t_1 = time.perf_counter()
+        constants.time_spent_making_patrol_moves += (t_1 - t_0)
 
     def report_new_direction(self, change) -> str:
         if change == "left":
@@ -421,15 +450,6 @@ class Drone:
                 self.location.y = self.location.y * (1 - part_of_route) + self.next_point.y * part_of_route
                 logger.debug(f"to {self.location.x: .3f}, {self.location.y: .3f}")
 
-    # def move_in_direction(self, direction_vector: list, distance_travelled: float):
-    #
-    #     latitudinal_movement = general_maths.km_to_latitudinal_distance(distance_travelled * direction_vector[0],
-    #                                                                     approx_long=self.location.y)
-    #     longitudinal_movement = general_maths.km_to_longitudinal_distance(distance_travelled * direction_vector[1])
-    #
-    #     self.location.x += latitudinal_movement
-    #     self.location.y += longitudinal_movement
-
     def spread_pheromones(self):
         locations = []
         for lamb in np.arange(0, 1, 1 / self.world.splits_per_step):
@@ -465,6 +485,7 @@ class Drone:
             return False
 
     def observe_area(self, ships):
+        t_0 = time.perf_counter()
         for ship in ships:
             detection_probabilities = []
 
@@ -486,10 +507,15 @@ class Drone:
                 print(f"UAV {self.uav_id} detected {ship.ship_id} - w/ prob {probability}. - {self.routing_to_base=}")
                 if not self.routing_to_base:
                     self.start_trailing(ship)
+                t_1 = time.perf_counter()
+                constants.time_spent_observing_area += (t_1 - t_0)
                 return
             else:
                 print(f"UAV {self.uav_id} missed ship {ship.ship_id} - detect prob {probability}.")
                 pass
+
+        t_1 = time.perf_counter()
+        constants.time_spent_observing_area += (t_1 - t_0)
 
     @staticmethod
     def roll_detection_check(uav_location, ship: Ship) -> float:
@@ -586,12 +612,22 @@ class Drone:
         :param target:
         :return:
         """
+
+        # First check if the distance is possible without obstacles to prevent unnecessary heavier computations
+        remaining_endurance = self.endurance - self.time_spent_airborne
+        dist_to_point = self.location.distance_to_point(target)
+        dist_to_base = target.distance_to_point(self.base.location)
+        min_endurance_required = (dist_to_point + dist_to_base) / self.speed
+
+        if min_endurance_required * (1+constants.SAFETY_ENDURANCE) > remaining_endurance:
+            return False
+
         path_to_point = routes.create_route(self.location, target, polygons_to_avoid=self.world.polygons)
         path_to_base = routes.create_route(target, self.base.location, polygons_to_avoid=self.world.polygons)
         total_length = path_to_point.length + path_to_base.length
         endurance_required = total_length / self.speed
         # See if we have enough endurance remaining, plus small penalty to ensure we can trail
-        if endurance_required * constants.SAFETY_ENDURANCE > self.endurance:
+        if endurance_required * (1+constants.SAFETY_ENDURANCE) > remaining_endurance:
             return False
         else:
             return True
@@ -599,6 +635,7 @@ class Drone:
     def launch(self, world):
         world.current_airborne_drones.append(self)
         self.grounded = False
+        self.drone_type.airborne += 1
         start_location = self.generate_patrol_location()
         start_location.name = "Start Location"
         logger.debug(f"Launching UAV {self.uav_id} to {start_location}")
@@ -667,10 +704,10 @@ class Drone:
 
     def start_maintenance(self):
         self.under_maintenance = True
-        self.time_maintenance_finish = self.world.time + self.maintenance_time
+        self.time_maintenance_finish = self.world.world_time + self.maintenance_time
 
     def check_if_complete_maintenance(self):
-        if self.world.time >= self.time_maintenance_finish:
+        if self.world.world_time >= self.time_maintenance_finish:
             self.complete_maintenance()
 
     def complete_maintenance(self):

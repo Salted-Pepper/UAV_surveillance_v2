@@ -2,6 +2,8 @@ import copy
 import math
 import constants
 
+import time
+
 # ----------------------------------------------- LOGGER SET UP ------------------------------------------------
 import logging
 import datetime
@@ -24,6 +26,8 @@ def calculate_distance(a: object, b: object, lon_lat_to_km=True) -> float:
     :param lon_lat_to_km: bool, whether distance translated from lon_lat
     :return: Float distance
     """
+    t_0 = time.perf_counter()
+
     if lon_lat_to_km:
         latitudinal_distance_in_km = longitudinal_distance_to_km(a.y, b.y)
         mean_latitude = (a.y + b.y) / 2
@@ -31,6 +35,9 @@ def calculate_distance(a: object, b: object, lon_lat_to_km=True) -> float:
         distance = math.sqrt(latitudinal_distance_in_km ** 2 + longitudinal_distance_in_km ** 2)
     else:
         distance = math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2)
+
+    t_1 = time.perf_counter()
+    constants.time_spent_calculating_distance += (t_1 - t_0)
     return distance
 
 
@@ -276,14 +283,22 @@ def calculate_direction_vector(point_a: object, point_b: object) -> list:
     :param point_b: point of arrival
     :return:
     """
+    t_0 = time.perf_counter()
+
     if point_a is point_b:
         raise ValueError(f"Traversing between same points: {point_a}")
     normalisation_value = math.sqrt((point_b.x - point_a.x) ** 2 + (point_b.y - point_a.y) ** 2)
     if normalisation_value == 0:
         logger.warning(f"Normalisation value of 0 - direction from {str(point_a)} to {str(point_b)}")
+
+        t_1 = time.perf_counter()
+        constants.time_spent_calculating_direction += (t_1 - t_0)
         return [0, 0]
     x_change = (point_b.x - point_a.x) / normalisation_value
     y_change = (point_b.y - point_a.y) / normalisation_value
+
+    t_1 = time.perf_counter()
+    constants.time_spent_calculating_direction += (t_1 - t_0)
     return [x_change, y_change]
 
 

@@ -1,3 +1,4 @@
+import time
 import warnings
 import matplotlib.axes
 from points import Point
@@ -50,6 +51,7 @@ def create_route(point_a: Point, point_b: Point, polygons_to_avoid: list) -> Rou
     :param polygons_to_avoid: List of polygons to avoid
     :return:
     """
+    t_0 = time.perf_counter()
     # logger.debug(f"Creating route from {point_a} to {point_b}")
     route = [point_a, point_b]
 
@@ -76,6 +78,8 @@ def create_route(point_a: Point, point_b: Point, polygons_to_avoid: list) -> Rou
 
     shorter_route = gm.maximize_concavity(route, polygons_to_avoid)
     # logger.debug(f"Route is set to {[str(p) for p in shorter_route]}")
+    t_1 = time.perf_counter()
+    constants.time_spent_creating_routes += (t_1 - t_0)
     return Route(points=shorter_route)
 
 

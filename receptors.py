@@ -67,11 +67,13 @@ class Receptor:
 
 
 class ReceptorGrid:
-    def __init__(self, polygons: list) -> None:
+    def __init__(self, polygons: list, world) -> None:
         self.receptors = []
 
         self.max_cols = None
         self.max_rows = None
+
+        self.world = world
 
         self.polygons = polygons
 
@@ -156,7 +158,8 @@ class ReceptorGrid:
     def depreciate_pheromones(self):
         for receptor in self.receptors:
             if receptor.decay:
-                receptor.pheromones = receptor.pheromones * constants.PHEROMONE_DEPRECIATION_FACTOR
+                receptor.pheromones = (receptor.pheromones *
+                                       constants.PHEROMONE_DEPRECIATION_FACTOR_PER_TIME_DELTA**(1/self.world.time_delta))
 
     def calculate_CoP(self, point: Point, radius: float) -> (float, list):
         """
