@@ -12,6 +12,9 @@ import logging
 import os
 import time
 
+if not os.path.exists("logs"):
+    os.makedirs("logs")
+
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -22,9 +25,6 @@ from points import Point
 from polygons import Polygon
 from receptors import ReceptorGrid
 from ships import Ship, generate_random_ship
-
-if not os.path.exists("logs"):
-    os.makedirs("logs")
 
 date = datetime.date.today()
 
