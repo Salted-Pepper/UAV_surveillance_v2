@@ -1,6 +1,7 @@
 """
 Receptors track the pheromones for the spread and contain local statistics (e.g. weather conditions) per region
 """
+import time
 
 import matplotlib.patches
 
@@ -48,6 +49,8 @@ class Receptor:
         return f"Receptor at: {self.location} - with pheromones {self.pheromones}"
 
     def initiate_plot(self, axes, cmap):
+        if not constants.PLOTTING_MODE:
+            return
         self.patch = matplotlib.patches.Circle((self.location.x, self.location.y),
                                                radius=0.05, color=cmap(self.pheromones / 100),
                                                alpha=0.5, linewidth=None)
@@ -55,6 +58,8 @@ class Receptor:
         return axes
 
     def update_plot(self, axes, cmap):
+        if not constants.PLOTTING_MODE:
+            return
         self.patch.set_facecolor(cmap(self.pheromones / 100))
         self.patch.set_edgecolor(cmap(self.pheromones / 100))
         return axes
@@ -115,16 +120,18 @@ class ReceptorGrid:
         :param radius: Radius around the point
         :return:
         """
-
+        t_0 = time.perf_counter()
+        # Adjust radius to an upperbound of the coordinate transformation
+        lon_lat_radius = max(radius / 100, constants.GRID_WIDTH / 2)
         # only check receptors in the rectangle of size radius - select receptors in the list based on
         # how the list is constructed.
         x, y = point.x, point.y
-        # logger.debug(f"Looking for receptors around ({x:.3f},{y:.3f}) with radius {radius}, "
-        #              f"max_rows {self.max_rows}, max_cols {self.max_cols}")
-        min_x = x - radius
-        max_x = x + radius
-        min_y = y - radius
-        max_y = y + radius
+        # print(f"Looking for receptors around ({x:.3f},{y:.3f}) with radius {radius}, "
+        #       f"max_rows {self.max_rows}, max_cols {self.max_cols}")
+        min_x = x - lon_lat_radius
+        max_x = x + lon_lat_radius
+        min_y = y - lon_lat_radius
+        max_y = y + lon_lat_radius
 
         # see in which rows and columns this rectangle is:
         min_row = int(max(np.floor((min_x - (constants.MIN_LAT - constants.LAT_GRID_EXTRA))
@@ -143,16 +150,17 @@ class ReceptorGrid:
 
         receptors_in_radius = []
         # logger.debug(f"{min_row=}, {max_row=}, {min_col=}, {max_col=}")
+        # print(f"{min_row=}, {max_row=}, {min_col=}, {max_col=}")
         for row_index in range(min_row, max_row):
             for col_index in range(min_col, max_col):
                 index = self.max_cols * row_index + col_index
                 r = self.receptors[index]
-                # logger.debug(f"Considering receptor {r} - In range? {r.in_range_of_point(point, radius)}")
 
-                # Select larger radius for future steps
                 if r.in_range_of_point(point, radius * constants.RECEPTOR_RADIUS_MULTIPLIER):
                     receptors_in_radius.append(r)
 
+        t_1 = time.perf_counter()
+        constants.time_spent_selecting_receptors += (t_1 - t_0)
         return receptors_in_radius
 
     def depreciate_pheromones(self):

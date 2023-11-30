@@ -2,7 +2,8 @@
 axes_plot = None
 
 ITERATION_LIMIT = 100
-DEBUG_MODE = False
+DEBUG_MODE = True
+PLOTTING_MODE = True
 
 # ---- PERFORMANCE MEASURING ----
 
@@ -11,9 +12,14 @@ time_spent_calculating_distance = 0
 time_spent_making_patrol_moves = 0
 time_spent_observing_area = 0
 time_spreading_pheromones = 0
+time_spent_updating_trail_route = 0
 time_spent_uav_route_move = 0
 time_spent_checking_uav_return = 0
 time_spent_depreciating_pheromones = 0
+time_spent_following_route = 0
+time_spent_launching_drones = 0
+
+time_spent_selecting_receptors = 0
 
 # ---- World Constants ----
 CARGO_DAILY_ARRIVAL_MEAN = 30
@@ -58,7 +64,7 @@ PATROL_MAX_LAT = 150
 PATROL_MIN_LONG = 10
 PATROL_MAX_LONG = 40
 
-UAV_AVAILABILITY = 0.7
+UAV_AVAILABILITY = 0.4
 
 MODEL_DICTIONARIES = [{"name": "WLI_GJI",
                        "speed": 210,

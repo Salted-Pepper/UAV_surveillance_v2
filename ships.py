@@ -103,6 +103,24 @@ class Ship:
 
         self.move(self.world.time_delta)
 
+        if constants.DEBUG_MODE:
+            for polygon in self.world.polygons:
+                if polygon.check_if_contains_point(self.location):
+                    self.location.add_point_to_plot(axes=constants.axes_plot, color="yellow")
+                    self.next_point.add_point_to_plot(axes=constants.axes_plot, color="black", text="NEXT")
+                    self.route.add_route_to_plot(axes=constants.axes_plot)
+                    for p in self.route.points:
+                        p.add_point_to_plot(axes=constants.axes_plot, color="purple", text=p.point_id, markersize=8)
+                        polygon.check_if_line_through_polygon(self.past_points[-1], self.next_point)
+                    raise PermissionError(f"Ship {self.ship_id} at illegal location: "
+                                          f"({self.location.x: .3f}, {self.location.y: .3f}). \n"
+                                          f"Route is {[str(p) for p in self.route.points]} "
+                                          f"retreating: {self.retreating}, "
+                                          f"sunk: {self.sunk} "
+                                          f"Next Point: {self.next_point}, "
+                                          f"trailing uavs? : {[u for u in self.trailing_UAVs]}. \n"
+                                          f"this falls in polygon {[str(p) for p in polygon.points]}")
+
     def move(self, time_delta) -> None:
         distance_to_travel = time_delta * self.speed
 
@@ -115,7 +133,6 @@ class Ship:
                 raise TimeoutError(f"Vessel {self.ship_id} stuck on distance {distance_to_travel}")
             logger.debug(f"Ship {self.ship_id} travelling from {self.location.x, self.location.y} "
                          f"to {self.next_point.x, self.next_point.y} ")
-            direction_vector = calculate_direction_vector(self.location, self.next_point)
 
             # logger.debug(f"- dir vector is {direction_vector} - dist to travel {distance_to_travel}")
             distance_to_next_point = self.location.distance_to_point(self.next_point)
@@ -137,8 +154,9 @@ class Ship:
             else:
                 # logger.debug(f"Ship {self.ship_id} moved from {self.location.x}, {self.location.y}")
                 part_of_route = (distance_travelled/distance_to_next_point)
-                self.location.x = self.location.x * (1 - part_of_route) + self.next_point.x * part_of_route
-                self.location.y = self.location.y * (1 - part_of_route) + self.next_point.y * part_of_route
+                new_x = self.location.x * (1 - part_of_route) + self.next_point.x * part_of_route
+                new_y = self.location.y * (1 - part_of_route) + self.next_point.y * part_of_route
+                self.location = Point(new_x, new_y, name="Ship" + str(self.ship_id))
                 # logger.debug(f"to {self.location.x}, {self.location.y}")
 
     def generate_ship_entry_point(self) -> None:
@@ -182,12 +200,16 @@ class Ship:
         self.remove_from_plot()
 
     def remove_from_plot(self):
+        if not constants.PLOTTING_MODE:
+            return
         if self.marker is not None:
             for m in self.marker:
                 m.remove()
             self.text.remove()
 
     def update_plot(self):
+        if not constants.PLOTTING_MODE:
+            return
         self.remove_from_plot()
         self.marker = self.ax.plot(self.location.x, self.location.y, color=constants.MERCHANT_COLOR,
                                    marker="*", markersize=constants.WORLD_MARKER_SIZE, markeredgecolor="black")

@@ -66,7 +66,7 @@ class DroneType:
         Checks if we should launch more drones to satisfy the utilization rate
         :return:
         """
-        if (self.airborne+1) / (self.total - self.destroyed) > self.utilization_rate:
+        if (self.airborne + 1) / (self.total - self.destroyed) > self.utilization_rate:
             return True
         else:
             return False
@@ -116,7 +116,7 @@ class Drone:
 
         # Model inherited properties
         # TODO: Tweak pheromone spread and make it model dependent
-        self.pheromone_spread = 100
+        self.pheromone_spread = 500
         # self.pheromone_type = "?"
 
         self.speed = None
@@ -172,7 +172,7 @@ class Drone:
 
         # Check heuristically - to prevent route creation for all instances
         dist_to_base = self.location.distance_to_point(self.base.location)
-        required_endurance_max = (1.5*dist_to_base) / self.speed
+        required_endurance_max = (1.5 * dist_to_base) / self.speed
         if required_endurance_max < remaining_endurance:
             return True
 
@@ -217,10 +217,17 @@ class Drone:
                 self.support_object = None
 
         self.time_spent_airborne += self.world.time_delta
+
         if self.routing_to_start or self.routing_to_base or self.trailing:
+            t_0 = time.perf_counter()
             if self.trailing:
                 self.update_trail_route()
+            t_1 = time.perf_counter()
+            constants.time_spent_updating_trail_route += (t_1 - t_0)
+            t_0 = time.perf_counter()
             self.move_through_route(distance_to_travel)
+            t_1 = time.perf_counter()
+            constants.time_spent_following_route += (t_1 - t_0)
 
             if self.trailing and self.is_near(self.located_ship.location):
                 self.call_action_on_ship()
@@ -341,7 +348,6 @@ class Drone:
         self.observe_area(self.world.current_vessels)
         self.spread_pheromones()
 
-
     def move_towards_orientation(self, distance_to_travel: float, direction=None) -> Point:
         """
         Used to explore move in POTENTIAL direction
@@ -433,8 +439,9 @@ class Drone:
                 # logger.debug(f"UAV {self.uav_id} moved from {self.location.x: .3f}, {self.location.y: .3f}")
 
                 part_of_route = (distance_travelled / distance_to_next_point)
-                self.location.x = self.location.x * (1 - part_of_route) + self.next_point.x * part_of_route
-                self.location.y = self.location.y * (1 - part_of_route) + self.next_point.y * part_of_route
+                new_x = self.location.x * (1 - part_of_route) + self.next_point.x * part_of_route
+                new_y = self.location.y * (1 - part_of_route) + self.next_point.y * part_of_route
+                self.location = Point(new_x, new_y, name="UAV" + str(self.uav_id))
                 # logger.debug(f"to {self.location.x: .3f}, {self.location.y: .3f}")
 
         t_1 = time.perf_counter()
@@ -455,7 +462,7 @@ class Drone:
                 if receptor.decay:  # To Check if receptor is not a boundary point
                     receptor.pheromones += ((1 / max(location.distance_to_point(receptor.location), 0.1)) *
                                             (self.pheromone_spread / self.world.splits_per_step))
-                    receptor.update_plot(self.world.ax, self.world.receptor_grid.cmap)
+                    # receptor.update_plot(self.world.ax, self.world.receptor_grid.cmap)
         t_1 = time.perf_counter()
         constants.time_spreading_pheromones += (t_1 - t_0)
 
@@ -493,8 +500,9 @@ class Drone:
             for lamb in np.append(np.arange(0, 1, step=1 / self.world.splits_per_step), 1):
                 uav_location = Point(self.location.x * lamb + self.last_location.x * (1 - lamb),
                                      self.location.y * lamb + self.last_location.y * (1 - lamb))
-                if calculate_distance(a=uav_location, b=ship.location) <= self.radius:
-                    detection_probabilities.append(self.roll_detection_check(uav_location, ship))
+                distance = calculate_distance(a=uav_location, b=ship.location)
+                if distance <= self.radius:
+                    detection_probabilities.append(self.roll_detection_check(uav_location, ship, distance))
             probability = 1 - np.prod([(1 - p) ** (1 / self.world.splits_per_step) for p in detection_probabilities])
             if np.random.rand() <= probability:
                 print(f"UAV {self.uav_id} detected {ship.ship_id} - w/ prob {probability}. - {self.routing_to_base=}")
@@ -511,8 +519,9 @@ class Drone:
         constants.time_spent_observing_area += (t_1 - t_0)
 
     @staticmethod
-    def roll_detection_check(uav_location, ship: Ship) -> float:
-        distance = calculate_distance(a=uav_location, b=ship.location)
+    def roll_detection_check(uav_location, ship: Ship, distance: float = None) -> float:
+        if distance is None:
+            distance = calculate_distance(a=uav_location, b=ship.location)
 
         # TODO: Add weather parameter
         weather = 0.77  # To implement - see sea state in drive file.
@@ -548,8 +557,8 @@ class Drone:
         self.generate_route(destination=self.located_ship.location)
 
     def stop_trailing(self, reason: str):
-        print(f"UAV {self.uav_id} is stopping trailing {self.located_ship.ship_id} - {reason}")
         if self.trailing:
+            print(f"UAV {self.uav_id} is stopping trailing {self.located_ship.ship_id} - {reason}")
             self.trailing = False
             self.located_ship.trailing_UAVs.remove(self)
             self.located_ship = None
@@ -559,6 +568,9 @@ class Drone:
             self.make_next_patrol_move(self.speed * self.world.time_delta)
         else:
             logger.warning(f"UAV {self.uav_id} was not trailing - ordered to stop")
+            for ship in self.world.current_vessels:
+                if self in ship.trailing_UAVs:
+                    print(f"Ship {ship.ship_id} found to identify uav {self.uav_id} as trailing!")
 
     def call_action_on_ship(self):
         if self.ammunition > 0:
@@ -612,7 +624,7 @@ class Drone:
         dist_to_base = target.distance_to_point(self.base.location)
         min_endurance_required = (dist_to_point + dist_to_base) / self.speed
 
-        if min_endurance_required * (1+constants.SAFETY_ENDURANCE) > remaining_endurance:
+        if min_endurance_required * (1 + constants.SAFETY_ENDURANCE) > remaining_endurance:
             return False
 
         path_to_point = routes.create_route(self.location, target, polygons_to_avoid=self.world.polygons)
@@ -620,7 +632,7 @@ class Drone:
         total_length = path_to_point.length + path_to_base.length
         endurance_required = total_length / self.speed
         # See if we have enough endurance remaining, plus small penalty to ensure we can trail
-        if endurance_required * (1+constants.SAFETY_ENDURANCE) > remaining_endurance:
+        if endurance_required * (1 + constants.SAFETY_ENDURANCE) > remaining_endurance:
             return False
         else:
             return True
@@ -710,6 +722,8 @@ class Drone:
         self.time_spent_airborne = 0
 
     def update_plot(self):
+        if not constants.PLOTTING_MODE:
+            return
         if self.marker is not None:
             for m in self.marker:
                 m.remove()

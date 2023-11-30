@@ -69,6 +69,8 @@ def create_route(point_a: Point, point_b: Point, polygons_to_avoid: list) -> Rou
 
         iterations += 1
         if iterations > constants.ITERATION_LIMIT:
+            logger.error(f"Unable to create route from {point_a} to {point_b} "
+                         f"around {obstacle}, going through edge: {point_k}, {point_l}")
             point_k.add_point_to_plot(axes=constants.axes_plot, color="yellow", text="k")
             point_l.add_point_to_plot(axes=constants.axes_plot, color="yellow", text="l")
             obstacle.add_polygon_to_plot(axes=constants.axes_plot, color="black", opacity=0.3)
@@ -277,10 +279,10 @@ def insert_path_in_c_h(path: list, c_h: list, target: Point):
         points_preceding_first = c_h[preceding_index:] + c_h[:following_index + 1]
         points_following_first = c_h[following_index:preceding_index + 1]
 
-    logger.debug(f"Path is {[str(p) for p in path]}, {preceding_index=}, {following_index=} \n"
-                 f"preceding points: {[str(p) for p in points_preceding_first]}, "
-                 f"following points: {[str(p) for p in points_following_first]}, "
-                 f"C_h is: {[str(p) for p in c_h]}")
+    # logger.debug(f"Path is {[str(p) for p in path]}, {preceding_index=}, {following_index=} \n"
+    #              f"preceding points: {[str(p) for p in points_preceding_first]}, "
+    #              f"following points: {[str(p) for p in points_following_first]}, "
+    #              f"C_h is: {[str(p) for p in c_h]}")
 
     if len(points_following_first) < len(points_preceding_first):
         path.reverse()

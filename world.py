@@ -165,6 +165,8 @@ class World:
             drone_type.calculate_utilization_rate()
 
     def plot_world(self, include_receptors=False) -> None:
+        if not constants.PLOTTING_MODE:
+            return
         self.fig, self.ax = plt.subplots(1, figsize=(constants.PLOT_SIZE, constants.PLOT_SIZE))
         self.ax.set_title(f"Sea Map - time is {self.world_time}")
         self.ax.set_facecolor("#2596be")
@@ -197,6 +199,9 @@ class World:
         self.fig.canvas.draw()
 
     def plot_world_update(self) -> None:
+        if not constants.PLOTTING_MODE:
+            return
+
         self.ax.set_title(f"Sea Map - time is {self.world_time: .3f}")
         for ship in self.current_vessels:
             ship.update_plot()
@@ -217,9 +222,12 @@ class World:
 
     def launch_drone(self) -> None:
         # TODO: Work out sending/launching of drones (currently launches one each turn)
+        t_0 = time.perf_counter()
         for drone_type in self.drone_types:
             if not drone_type.reached_utilization_rate():
                 drone_type.launch_drone_of_type(self)
+        t_1 = time.perf_counter()
+        constants.time_spent_launching_drones += (t_1 - t_0)
 
     def calculate_ships_entering(self) -> int:
         """
@@ -227,7 +235,7 @@ class World:
         :return: Integer number of ships entering
         """
         # TODO: Sample from poisson with rate lambda as in overleaf
-        if np.random.rand() > 0.95:
+        if np.random.rand() > 0.97:
             return 1
         else:
             return 0
@@ -322,7 +330,7 @@ class Dock:
 t_0 = time.perf_counter()
 world = World(time_delta=0.2)
 
-for z in range(1000):
+for z in range(5000):
     world.time_step()
 t_1 = time.perf_counter()
 
@@ -333,8 +341,12 @@ print(f"TOTAL TIME: {(t_1 - t_0) / 60} \n"
       f"Time spent plotting: {world.time_spent_plotting/60} \n")
 print(f"Time spent on: \n"
       f"Creating routes: {constants.time_spent_creating_routes / 60} \n"
-      f"UAV Moving through route: {constants.time_spent_uav_route_move / 60} \n"
       f"Calculating distance: {constants.time_spent_calculating_distance / 60} \n"
       f"Making Patrol Moves: {constants.time_spent_making_patrol_moves / 60} \n"
-      f"Observing Area: {constants.time_spent_observing_area / 60} \n"
-      f"UAV return checks: {constants.time_spent_checking_uav_return /60}")
+      f"Spreading Pheromones: {constants.time_spreading_pheromones / 60} \n"
+      f"Updating Route: {constants.time_spent_updating_trail_route / 60} \n"
+      f"UAV Moving through route: {constants.time_spent_uav_route_move / 60} \n"
+      f"UAV return checks: {constants.time_spent_checking_uav_return /60} \n"
+      f"Following Routes: {constants.time_spent_following_route / 60} \n"
+      f"Launching Drones: {constants.time_spent_launching_drones / 60} \n"
+      f"Observing Area: {constants.time_spent_observing_area / 60} \n")
