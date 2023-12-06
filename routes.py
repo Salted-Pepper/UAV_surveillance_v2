@@ -69,7 +69,8 @@ def create_route(point_a: Point, point_b: Point, polygons_to_avoid: list) -> Rou
 
         iterations += 1
         if iterations > constants.ITERATION_LIMIT:
-            logger.error(f"Unable to create route from {point_a} to {point_b} "
+            logger.error(f"Unable to create route from {point_a} at ({point_a.x}, {point_a.y}) to {point_b} at "
+                         f"({point_b.x, point_b.y}) "
                          f"around {obstacle}, going through edge: {point_k}, {point_l}")
             point_k.add_point_to_plot(axes=constants.axes_plot, color="yellow", text="k")
             point_l.add_point_to_plot(axes=constants.axes_plot, color="yellow", text="l")
@@ -156,7 +157,7 @@ def reroute_around_obstacle(point_k, point_l, obstacle: Polygon, route):
     :param route:
     :return:
     """
-    # logger.debug(f"Rerouting line from {point_k} to {point_l} around \n {obstacle}")
+    logger.debug(f"Rerouting line from {point_k} to {point_l} around \n {obstacle}")
 
     c_h = create_convex_hull(obstacle=obstacle, points=[point_k, point_l])
 

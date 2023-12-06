@@ -188,6 +188,39 @@ class Drone:
         else:
             return True
 
+    def debug(self):
+        """
+        Checks if any rules and/or logic are broken
+        :return:
+        """
+        for polygon in self.world.polygons:
+            if polygon.check_if_contains_point(P=self.location, exclude_edges=True):
+                self.location.add_point_to_plot(axes=constants.axes_plot, color="yellow")
+                self.last_location.add_point_to_plot(axes=constants.axes_plot, color="purple", text="LAST")
+                self.next_point.add_point_to_plot(axes=constants.axes_plot, color="red", text="NEXT")
+
+                if self.located_ship is not None:
+                    self.located_ship.location.add_point_to_plot(axes=constants.axes_plot,
+                                                                 color="green", text="Current")
+                    self.located_ship.next_point.add_point_to_plot(axes=constants.axes_plot, color="green", text="Next")
+                    self.located_ship.past_points[-1].add_point_to_plot(axes=constants.axes_plot,
+                                                                        color="green", text="Last")
+
+                for p in self.past_points:
+                    p.add_point_to_plot(axes=constants.axes_plot, color="black", text=p.point_id)
+                if self.route is not None:
+                    self.route.add_route_to_plot(axes=constants.axes_plot)
+                raise PermissionError(f"UAV {self.uav_id} at illegal location: "
+                                      f"({self.location.x: .3f}, {self.location.y: .3f}). \n"
+                                      f"Route is {[str(p) for p in self.route.points]} "
+                                      f"to start: {self.routing_to_start}, "
+                                      f"next point: {self.next_point} "
+                                      f"last point: {self.last_location} "
+                                      f"to base: {self.routing_to_base}, "
+                                      f"trailing? : {self.trailing}. "
+                                      f"Last location = ({self.last_location.x}, {self.last_location.y}). \n"
+                                      f"this falls in polygon {[str(p) for p in polygon.points]}")
+
     def move(self):
         """
         Make the move for the current time step.
@@ -201,6 +234,8 @@ class Drone:
         self.last_location = copy.deepcopy(self.location)
         t_0 = time.perf_counter()
         if not self.routing_to_base and not self.can_continue():
+            logger.debug(f"Checking after can_continue function for {self.uav_id}")
+            self.debug()
             self.return_to_base()
             self.time_spent_airborne += self.world.time_delta
             t_1 = time.perf_counter()
@@ -238,24 +273,7 @@ class Drone:
 
         # Check if drone is in legal location
         if constants.DEBUG_MODE:
-            for polygon in self.world.polygons:
-                if polygon.check_if_contains_point(P=self.location, exclude_edges=True):
-                    self.location.add_point_to_plot(axes=constants.axes_plot, color="yellow")
-                    self.last_location.add_point_to_plot(axes=constants.axes_plot, color="purple", text="LAST")
-                    self.next_point.add_point_to_plot(axes=constants.axes_plot, color="black", text="NEXT")
-                    for p in self.past_points:
-                        p.add_point_to_plot(axes=constants.axes_plot, color="black", text=p.point_id)
-                    if self.route is not None:
-                        self.route.add_route_to_plot(axes=constants.axes_plot)
-                    raise PermissionError(f"UAV {self.uav_id} at illegal location: "
-                                          f"({self.location.x: .3f}, {self.location.y: .3f}). \n"
-                                          f"Route is {[str(p) for p in self.route.points]} "
-                                          f"to start: {self.routing_to_start}, "
-                                          f"last point: {self.last_location} "
-                                          f"to base: {self.routing_to_base}, "
-                                          f"trailing? : {self.trailing}. "
-                                          f"Last location = ({self.last_location.x}, {self.last_location.y}). \n"
-                                          f"this falls in polygon {[str(p) for p in polygon.points]}")
+            self.debug()
 
     def make_next_patrol_move(self, distance_to_travel: float):
         t_0 = time.perf_counter()
@@ -295,9 +313,9 @@ class Drone:
         concentration_of_pheromones = [CoP_left, CoP_straight, CoP_right]
         try:
             probabilities = [1 / CoP for CoP in concentration_of_pheromones]
-        except ZeroDivisionError as e:
-            print(f"UAV {self.uav_id} at {self.location.x}, {self.location.y} has 0 CoP surrounding.")
-            raise ZeroDivisionError(e)
+        except ZeroDivisionError:
+            logger.warning(f"UAV {self.uav_id} at {self.location.x}, {self.location.y} has 0 CoP surrounding.")
+            probabilities = [1/3, 1/3, 1/3]
         if sum(probabilities) != 0:
             probabilities = [p / sum(probabilities) for p in probabilities]
         else:
@@ -307,6 +325,18 @@ class Drone:
         if all([math.isinf(CoP_left), math.isinf(CoP_straight), math.isinf(CoP_right)]):
             direction = "turn"
         else:
+            if constants.DEBUG_MODE:
+                if any(np.isnan(probabilities)):
+                    self.location.add_point_to_plot(constants.axes_plot, color="purple")
+                    left_point.add_point_to_plot(constants.axes_plot, color="blue")
+                    straight_point.add_point_to_plot(constants.axes_plot, color="red")
+                    right_point.add_point_to_plot(constants.axes_plot, color="green")
+                    raise ValueError(f"Probability is NaN - uav {self.uav_id} at "
+                                     f"({self.location.x}, {self.location.y}).\n"
+                                     f"({left_point.x}, {left_point.y}), "
+                                     f"({straight_point.x}, {straight_point.y})"
+                                     f",({right_point.x}, {right_point.y}) - {probabilities}")
+
             direction = np.random.choice(["left", "straight", "right"], 1, p=probabilities)
 
         # logger.debug(f"Direction probabilities is left:{probabilities[0]:.2f}, "
@@ -344,6 +374,10 @@ class Drone:
 
         t_1 = time.perf_counter()
         constants.time_spent_making_patrol_moves += (t_1 - t_0)
+
+        # Check if drone is in legal location
+        if constants.DEBUG_MODE:
+            self.debug()
 
         self.observe_area(self.world.current_vessels)
         self.spread_pheromones()
@@ -395,7 +429,7 @@ class Drone:
             iterations += 1
             if iterations > constants.ITERATION_LIMIT:
                 if self.route is not None:
-                    print(f"Route: {[str(p) for p in self.route.points]}")
+                    logger.warning(f"Route: {[str(p) for p in self.route.points]}")
                     self.next_point.add_point_to_plot(constants.axes_plot, color="yellow", text="next")
                 self.location.add_point_to_plot(constants.axes_plot, color="yellow", text="L")
                 raise TimeoutError(f"Distance travel not converging for UAV {self.uav_id} at {self.location} "
@@ -411,10 +445,10 @@ class Drone:
                 constants.time_spent_uav_route_move += (t_1 - t_0)
                 return
 
-            # logger.debug(f"UAV {self.uav_id} travelling from "
-            #              f"{self.location} ({self.location.x: .3f}, {self.location.y: .3f}) "
-            #              f"to {self.next_point} ({self.next_point.x, self.next_point.y}) ")
-            direction_vector = calculate_direction_vector(self.location, self.next_point)
+            logger.debug(f"UAV {self.uav_id} travelling from "
+                         f"{self.location} ({self.location.x: .3f}, {self.location.y: .3f}) "
+                         f"to {self.next_point} ({self.next_point.x, self.next_point.y}) ")
+            # direction_vector = calculate_direction_vector(self.location, self.next_point)
 
             distance_to_next_point = self.location.distance_to_point(self.next_point)
             # logger.debug(f"- dir vector is {np.around(direction_vector, 2)} - "
@@ -430,22 +464,30 @@ class Drone:
                 self.location = copy.deepcopy(self.next_point)
                 if len(self.remaining_points) > 0:
                     self.next_point = self.remaining_points.pop(0)
+                    logger.debug(f"Setting next point to {self.next_point}")
                 else:
                     self.reached_end_of_route()
-                # logger.debug(
-                #     f"UAV {self.uav_id} has {distance_to_travel} remaining - next point {self.next_point}, "
-                #     f"location is {self.location.x, self.location.y}")
+                    return
+                logger.debug(
+                    f"UAV {self.uav_id} has {distance_to_travel} remaining - next point {self.next_point}, "
+                    f"location is {self.location.x, self.location.y}")
             else:
-                # logger.debug(f"UAV {self.uav_id} moved from {self.location.x: .3f}, {self.location.y: .3f}")
-
+                logger.debug(f"Current point is ({self.location.x}, {self.location.y}). \n"
+                             f"Next point is {self.next_point} at ({self.next_point.x}, {self.next_point.y})")
                 part_of_route = (distance_travelled / distance_to_next_point)
-                new_x = self.location.x * (1 - part_of_route) + self.next_point.x * part_of_route
-                new_y = self.location.y * (1 - part_of_route) + self.next_point.y * part_of_route
-                self.location = Point(new_x, new_y, name="UAV" + str(self.uav_id))
-                # logger.debug(f"to {self.location.x: .3f}, {self.location.y: .3f}")
+                logger.debug(f"{part_of_route= :.3f}, {self.location.x= :.3f}, {self.location.y= :.3f}, "
+                             f"{self.next_point.x= :.3f}, {self.next_point.y= :.3f} ")
+                new_x = self.location.x + part_of_route * (self.next_point.x - self.location.x)
+                new_y = self.location.y + part_of_route * (self.next_point.y - self.location.y)
+                self.location = Point(new_x, new_y, name="UAV " + str(self.uav_id))
+                logger.debug(f"Moved to {self.location.x: .3f}, {self.location.y: .3f}")
 
         t_1 = time.perf_counter()
         constants.time_spent_uav_route_move += (t_1 - t_0)
+
+        # Check if drone is in legal location
+        if constants.DEBUG_MODE:
+            self.debug()
 
     def spread_pheromones(self):
         t_0 = time.perf_counter()
@@ -505,14 +547,14 @@ class Drone:
                     detection_probabilities.append(self.roll_detection_check(uav_location, ship, distance))
             probability = 1 - np.prod([(1 - p) ** (1 / self.world.splits_per_step) for p in detection_probabilities])
             if np.random.rand() <= probability:
-                print(f"UAV {self.uav_id} detected {ship.ship_id} - w/ prob {probability}. - {self.routing_to_base=}")
+                # logger.debug(f"UAV {self.uav_id} detected {ship.ship_id} - w/ prob {probability}. - {self.routing_to_base=}")
                 if not self.routing_to_base:
                     self.start_trailing(ship)
                 t_1 = time.perf_counter()
                 constants.time_spent_observing_area += (t_1 - t_0)
                 return
             else:
-                print(f"UAV {self.uav_id} failed to detect ship {ship.ship_id} - detect prob {probability}.")
+                # logger.debug(f"UAV {self.uav_id} failed to detect ship {ship.ship_id} - detect prob {probability}.")
                 pass
 
         t_1 = time.perf_counter()
@@ -533,6 +575,9 @@ class Drone:
         return delta
 
     def start_trailing(self, ship: Ship):
+        if self.routing_to_start:
+            logger.warning(f"UAV {self.uav_id} stopped routing to start point - chasing {ship.ship_id}")
+            self.routing_to_start = False
         self.patrolling = False
         self.trailing = True
         ship.trailing_UAVs.append(self)
@@ -544,13 +589,14 @@ class Drone:
 
         if self.located_ship is not None:
             if self.located_ship.reached_destination:
-                print(f"UAV {self.uav_id} is forced to stop chasing {self.located_ship.ship_id} - reached destination.")
+                logger.debug(f"UAV {self.uav_id} is forced to stop chasing {self.located_ship.ship_id} "
+                             f"- reached destination.")
                 self.stop_trailing("Target Reached Destination")
                 return
 
             for polygon in self.world.polygons:
                 if polygon.check_if_contains_point(self.located_ship.location):
-                    print(f"UAV {self.uav_id} is forced to stop chasing {self.located_ship.ship_id} - in safe zone.")
+                    logger.debug(f"UAV {self.uav_id} is forced to stop chasing {self.located_ship.ship_id} - in safe zone.")
                     self.stop_trailing("Target Entered Safe Zone")
                     return
 
@@ -558,7 +604,8 @@ class Drone:
 
     def stop_trailing(self, reason: str):
         if self.trailing:
-            print(f"UAV {self.uav_id} is stopping trailing {self.located_ship.ship_id} - {reason}")
+            logger.debug(f"UAV {self.uav_id} is stopping trailing {self.located_ship.ship_id} - {reason} - \n"
+                         f"status: {self.trailing=}, {self.routing_to_start=}, {self.routing_to_base=}.")
             self.trailing = False
             self.located_ship.trailing_UAVs.remove(self)
             self.located_ship = None
@@ -570,7 +617,7 @@ class Drone:
             logger.warning(f"UAV {self.uav_id} was not trailing - ordered to stop")
             for ship in self.world.current_vessels:
                 if self in ship.trailing_UAVs:
-                    print(f"Ship {ship.ship_id} found to identify uav {self.uav_id} as trailing!")
+                    logger.debug(f"Ship {ship.ship_id} found to identify uav {self.uav_id} as trailing!")
 
     def call_action_on_ship(self):
         if self.ammunition > 0:
@@ -583,7 +630,7 @@ class Drone:
         Attacks targeted vessel.
         :return:
         """
-        print(f"UAV {self.uav_id} attacking {self.located_ship.ship_id}")
+        logger.debug(f"UAV {self.uav_id} attacking {self.located_ship.ship_id}")
         if self.ammunition == 0:
             raise ValueError(f"UAV {self.uav_id} attempting to attack without available ammunition")
 
@@ -596,11 +643,11 @@ class Drone:
     def call_in_attacking_drone(self):
         options = []
         for uav in self.world.current_airborne_drones:
-            if uav.ammunition > 0 and uav.reach_and_return(self.located_ship.location):
+            if uav.ammunition > 0 and uav.reach_and_return(self.located_ship.location) and not uav.routing_to_base:
                 options.append([uav, self.location.distance_to_point(uav.location)])
 
         if len(options) == 0:
-            print(f"No supporting UAV available, gave up on the chase")
+            logger.debug(f"No supporting UAV available, gave up on the chase")
             self.stop_trailing("No Action Capacity")
             return
         else:
@@ -609,7 +656,8 @@ class Drone:
         self.awaiting_support = True
         selected_support.start_trailing(self.located_ship)
         self.support_object = selected_support
-        print(f"UAV {self.uav_id} calling in UAV {selected_support.uav_id} to attack ship {self.located_ship.ship_id}")
+        logger.debug(f"UAV {self.uav_id} calling in UAV {selected_support.uav_id} "
+                     f"to attack ship {self.located_ship.ship_id}")
 
     def reach_and_return(self, target: Point) -> bool:
         """

@@ -50,7 +50,7 @@ class Receptor:
 
     def initiate_plot(self, axes, cmap):
         if not constants.PLOTTING_MODE:
-            return
+            return axes
         self.patch = matplotlib.patches.Circle((self.location.x, self.location.y),
                                                radius=0.05, color=cmap(self.pheromones / 100),
                                                alpha=0.5, linewidth=None)

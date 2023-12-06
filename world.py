@@ -9,6 +9,7 @@ A time delta of 1 corresponds to jumps of 1 hour real time.
 
 import datetime
 import logging
+from logging.handlers import RotatingFileHandler
 import os
 import time
 
@@ -29,6 +30,8 @@ from ships import Ship, generate_random_ship
 date = datetime.date.today()
 
 logging.basicConfig(level=logging.DEBUG, filename=os.path.join(os.getcwd(), 'logs/navy_log_' + str(date) + '.log'),
+                    handlers= [RotatingFileHandler("logs/navy_log_" + str(date) + ".log",
+                                                   maxBytes=2000, backupCount=10)],
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', datefmt="%H:%M:%S", filemode='w')
 logger = logging.getLogger("WORLD")
 logger.setLevel(logging.DEBUG)
@@ -165,7 +168,7 @@ class World:
             drone_type.calculate_utilization_rate()
 
     def plot_world(self, include_receptors=False) -> None:
-        if not constants.PLOTTING_MODE:
+        if not constants.PLOTTING_MODE and not constants.DEBUG_MODE:
             return
         self.fig, self.ax = plt.subplots(1, figsize=(constants.PLOT_SIZE, constants.PLOT_SIZE))
         self.ax.set_title(f"Sea Map - time is {self.world_time}")
@@ -192,7 +195,7 @@ class World:
         if include_receptors:
             for receptor in self.receptor_grid.receptors:
                 self.ax = receptor.initiate_plot(self.ax, self.receptor_grid.cmap)
-
+        print(f"Setting constants axes plot to {self.ax}")
         constants.axes_plot = self.ax
 
         plt.show()
@@ -221,7 +224,6 @@ class World:
         self.current_vessels.append(ship)
 
     def launch_drone(self) -> None:
-        # TODO: Work out sending/launching of drones (currently launches one each turn)
         t_0 = time.perf_counter()
         for drone_type in self.drone_types:
             if not drone_type.reached_utilization_rate():
@@ -268,6 +270,10 @@ class World:
     def time_step(self) -> None:
         print(f"Starting iteration {self.world_time: .3f}")
         self.world_time += self.time_delta
+
+        for uav in self.drones:
+            if uav.under_maintenance:
+                uav.check_if_complete_maintenance()
 
         t_0 = time.perf_counter()
         self.create_arriving_ships()
@@ -328,9 +334,9 @@ class Dock:
 
 
 t_0 = time.perf_counter()
-world = World(time_delta=0.2)
+world = World(time_delta=0.4)
 
-for z in range(5000):
+for z in range(500000):
     world.time_step()
 t_1 = time.perf_counter()
 

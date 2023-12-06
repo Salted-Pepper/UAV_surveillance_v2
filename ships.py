@@ -154,9 +154,9 @@ class Ship:
             else:
                 # logger.debug(f"Ship {self.ship_id} moved from {self.location.x}, {self.location.y}")
                 part_of_route = (distance_travelled/distance_to_next_point)
-                new_x = self.location.x * (1 - part_of_route) + self.next_point.x * part_of_route
-                new_y = self.location.y * (1 - part_of_route) + self.next_point.y * part_of_route
-                self.location = Point(new_x, new_y, name="Ship" + str(self.ship_id))
+                new_x = self.location.x + part_of_route * (self.next_point.x - self.location.x)
+                new_y = self.location.y + part_of_route * (self.next_point.y - self.location.y)
+                self.location = Point(new_x, new_y, name="Ship " + str(self.ship_id))
                 # logger.debug(f"to {self.location.x}, {self.location.y}")
 
     def generate_ship_entry_point(self) -> None:
@@ -224,7 +224,7 @@ class Ship:
 
         damage = damage + 10 * self.damage_penalty
         self.health_points -= damage
-        print(f"Ship {self.ship_id} received {damage} damage. New health: {self.health_points}")
+        logger.debug(f"Ship {self.ship_id} received {damage} damage. New health: {self.health_points}")
 
         # Set Damage Effects
         if self.health_points >= 81:
