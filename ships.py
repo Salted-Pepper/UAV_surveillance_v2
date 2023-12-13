@@ -194,7 +194,7 @@ class Ship:
 
     def reached_end_point(self) -> None:
         for uav in self.trailing_UAVs:
-            uav.stop_trailing("Ship Reached Endpoint")
+            uav.stop_trailing("Ship Reached Endpoint", call_from_ship=True)
         self.reached_destination = True
         self.update_plot()
         self.remove_from_plot()

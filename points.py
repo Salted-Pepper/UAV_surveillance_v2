@@ -1,4 +1,5 @@
 import general_maths as gm
+import constants
 
 # ----------------------------------------------- LOGGER SET UP ------------------------------------------------
 import logging
@@ -53,13 +54,19 @@ class Point:
         self.x += other[0]
         self.y += other[1]
 
+    def __eq__(self, other) -> bool:
+        if self.x == other.x and self.y == other.y:
+            return True
+        else:
+            return False
+
     def location(self) -> tuple:
         return self.x, self.y
 
     def distance_to_point(self, point) -> float:
         return gm.calculate_distance(self, point)
 
-    def add_point_to_plot(self, axes, color=None, text="", marker="o",
+    def add_point_to_plot(self, axes=constants.axes_plot, color=None, text="", marker="o",
                           marker_edge_width=1, markersize=10, plot_text=True):
         if color is None:
             axes.plot(self.x, self.y, "o", markersize=markersize, alpha=0.5, marker=marker,
@@ -67,7 +74,7 @@ class Point:
         else:
             axes.plot(self.x, self.y, "o", color=color, markersize=markersize, alpha=0.5,
                       marker=marker, markeredgewidth=marker_edge_width)
-        if self.name is None and plot_text:
+        if len(str(text)) > 1 and plot_text:
             axes.text(self.x, self.y, text)
         elif self.name is not None and plot_text:
             axes.text(self.x, self.y, self.name)

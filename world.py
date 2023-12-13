@@ -30,8 +30,8 @@ from ships import Ship, generate_random_ship
 date = datetime.date.today()
 
 logging.basicConfig(level=logging.DEBUG, filename=os.path.join(os.getcwd(), 'logs/navy_log_' + str(date) + '.log'),
-                    handlers= [RotatingFileHandler("logs/navy_log_" + str(date) + ".log",
-                                                   maxBytes=2000, backupCount=10)],
+                    handlers=[RotatingFileHandler("logs/navy_log_" + str(date) + ".log",
+                                                  maxBytes=2000, backupCount=10)],
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', datefmt="%H:%M:%S", filemode='w')
 logger = logging.getLogger("WORLD")
 logger.setLevel(logging.DEBUG)
@@ -147,8 +147,8 @@ class World:
                            probability=0.05)]
 
     def initiate_airbases(self) -> None:
-        self.airbases = [Airbase(name="Base 1", location=Point(112, 22, force_maintain=True)),
-                         Airbase(name="Base 2", location=Point(120, 32, force_maintain=True))]
+        self.airbases = [Airbase(name="Base 1", location=Point(112, 22, force_maintain=True, name="Base 1")),
+                         Airbase(name="Base 2", location=Point(120, 32, force_maintain=True, name="Base 2"))]
 
     def initiate_drones(self) -> None:
         # TODO: Decide method on how to distribute over airbases (50/50 per type? Certain ratios?)
@@ -334,9 +334,9 @@ class Dock:
 
 
 t_0 = time.perf_counter()
-world = World(time_delta=0.4)
+world = World(time_delta=0.2)
 
-for z in range(500000):
+for z in range(1000000):
     world.time_step()
 t_1 = time.perf_counter()
 

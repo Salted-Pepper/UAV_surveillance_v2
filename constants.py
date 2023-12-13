@@ -1,7 +1,7 @@
 # ---- DEBUG PARAMETERS ----
 axes_plot = None
 
-ITERATION_LIMIT = 40
+ITERATION_LIMIT = 50
 DEBUG_MODE = True
 PLOTTING_MODE = False
 

@@ -176,13 +176,14 @@ class ReceptorGrid:
         :param radius:
         :return:
         """
-        receptors = self.select_receptors_in_radius(point, radius)
+        # Increase radius of receptors selected by a factor 2 to make more future-proof decisions
+        receptors = self.select_receptors_in_radius(point, radius * 2)
 
         if not is_in_area_of_interest(point):
             return math.inf, receptors
 
         for polygon in self.polygons:
-            if polygon.check_if_contains_point(point):
+            if polygon.check_if_contains_point(point, exclude_edges=False):
                 return math.inf, receptors
 
         CoP = 0

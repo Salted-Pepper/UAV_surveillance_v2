@@ -3,6 +3,7 @@ import math
 import constants
 
 import time
+import shapely.geometry
 
 # ----------------------------------------------- LOGGER SET UP ------------------------------------------------
 import logging
@@ -185,31 +186,58 @@ def do_intersect(p1: object, q1: object, p2: object, q2: object) -> bool:
         return False
 
 
-def check_if_lines_intersect(line_l: list, line_k: list) -> bool:
+def check_if_lines_intersect(line_l: list, line_k: list, except_end_points=True) -> bool:
     """
     Check if two lines intersect.
+    :param except_end_points: Include or except endpoints in the check
     :param line_l:
     :param line_k:
     :return:
     """
-    l_1 = line_l[0]
-    l_2 = line_l[1]
-    k_1 = line_k[0]
-    k_2 = line_k[1]
 
-    # Shorten lines slightly to avoid endpoints (e.g. if we arrive exactly at polygon point)
-    l_1 = copy.deepcopy(l_1)
-    l_2 = copy.deepcopy(l_2)
-    k_1 = copy.deepcopy(k_1)
-    k_2 = copy.deepcopy(k_2)
+    line_1 = shapely.geometry.LineString([[line_k[0].x, line_k[0].y], [line_k[1].x, line_k[1].y]])
+    line_2 = shapely.geometry.LineString([[line_l[0].x, line_l[0].y], [line_l[1].x, line_l[1].y]])
+    if except_end_points:
+        # Except if the line shares an endpoint - passing through 2 points on the polygon is handled in the polygon
+        # line checker
+        # print(f"{str(line_k[0])}, {str(line_k[1])}, {str(line_l[0])}, {str(line_l[1])}")
+        # print(f"{line_k[0] == line_l[0]}, {line_k[1] == line_l[0]}, {line_k[0] == line_l[1]}, {line_k[1] == line_l[0]}")
+        if line_k[0] == line_l[0] or line_k[1] == line_l[0] or line_k[0] == line_l[1] or line_k[1] == line_l[1]:
+            return False
+        # case if point is exactly on the line
+        elif (check_if_point_on_line(point=shapely.geometry.Point(line_k[0].x, line_k[0].y), line=line_2) or
+             check_if_point_on_line(point=shapely.geometry.Point(line_k[1].x, line_k[1].y), line=line_2) or
+             check_if_point_on_line(point=shapely.geometry.Point(line_l[0].x, line_l[0].y), line=line_1) or
+             check_if_point_on_line(point=shapely.geometry.Point(line_l[1].x, line_l[1].y), line=line_1)):
+            return False
+    intersect = line_1.intersects(line_2)
+    return intersect
 
-    l_1.x, l_2.x = l_1.x * 0.9999 + l_2.x * 0.0001, l_1.x * 0.0001 + l_2.x * 0.9999
-    l_1.y, l_2.y = l_1.y * 0.9999 + l_2.y * 0.0001, l_1.y * 0.0001 + l_2.y * 0.9999
+    # l_1 = line_l[0]
+    # l_2 = line_l[1]
+    # k_1 = line_k[0]
+    # k_2 = line_k[1]
+    #
+    # # Shorten lines slightly to avoid endpoints (e.g. if we arrive exactly at polygon point)
+    # l_1 = copy.deepcopy(l_1)
+    # l_2 = copy.deepcopy(l_2)
+    # k_1 = copy.deepcopy(k_1)
+    # k_2 = copy.deepcopy(k_2)
+    #
+    # l_1.x, l_2.x = l_1.x * 0.9999 + l_2.x * 0.0001, l_1.x * 0.0001 + l_2.x * 0.9999
+    # l_1.y, l_2.y = l_1.y * 0.9999 + l_2.y * 0.0001, l_1.y * 0.0001 + l_2.y * 0.9999
+    #
+    # k_1.x, k_2.x = k_1.x * 0.9999 + k_2.x * 0.0001, k_1.x * 0.0001 + k_2.x * 0.9999
+    # k_1.y, k_2.y = k_1.y * 0.9999 + k_2.y * 0.0001, k_1.y * 0.0001 + k_2.y * 0.9999
+    #
+    # return do_intersect(l_1, l_2, k_1, k_2)
 
-    k_1.x, k_2.x = k_1.x * 0.9999 + k_2.x * 0.0001, k_1.x * 0.0001 + k_2.x * 0.9999
-    k_1.y, k_2.y = k_1.y * 0.9999 + k_2.y * 0.0001, k_1.y * 0.0001 + k_2.y * 0.9999
 
-    return do_intersect(l_1, l_2, k_1, k_2)
+def check_if_point_on_line(point, line):
+    if line.distance(point) < 1e-8:
+        return True
+    else:
+        return False
 
 
 def maximize_concavity(path: list, polygons: list) -> list:
