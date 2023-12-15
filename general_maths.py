@@ -234,6 +234,11 @@ def check_if_lines_intersect(line_l: list, line_k: list, except_end_points=True)
 
 
 def check_if_point_on_line(point, line):
+    if isinstance(line, list):
+        line = shapely.geometry.LineString([[line[0].x, line[0].y], [line[1].x, line[1].y]])
+    if not isinstance(point, shapely.Point):
+        point = shapely.geometry.Point(point.x, point.y)
+
     if line.distance(point) < 1e-8:
         return True
     else:

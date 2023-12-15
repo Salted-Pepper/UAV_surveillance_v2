@@ -459,18 +459,18 @@ class Drone:
                 # Chasing sees if we still have to catch up with the vessel, otherwise the UAV trails it.
                 t_1 = time.perf_counter()
                 constants.time_spent_uav_route_move += (t_1 - t_0)
-                logger.debug(f"{self.uav_id} is close enough to {self.located_ship} - hovering in area")
+                # logger.debug(f"{self.uav_id} is close enough to {self.located_ship} - hovering in area")
                 return
 
-            logger.debug(f"UAV {self.uav_id} travelling from "
-                         f"{self.location} ({self.location.x: .3f}, {self.location.y: .3f}) to {self.next_point} ")
+            # logger.debug(f"UAV {self.uav_id} travelling from "
+            #              f"{self.location} ({self.location.x: .3f}, {self.location.y: .3f}) to {self.next_point} ")
 
             # Instance 2: Following a route (Start, Trailing, Returning)
-            logger.debug(f"{self.routing_to_start=}, {self.routing_to_base=}, {self.trailing=}, "
-                         f"{self.time_spent_airborne=},")
-            logger.debug(f"route is {[str(p) for p in self.route.points]} \n")
+            # logger.debug(f"{self.routing_to_start=}, {self.routing_to_base=}, {self.trailing=}, "
+            #              f"{self.time_spent_airborne=},")
+            # logger.debug(f"route is {[str(p) for p in self.route.points]} \n")
             if self.next_point is not None:
-                logger.debug(f"Next Point at: {self.next_point.x, self.next_point.y}")
+                # logger.debug(f"Next Point at: {self.next_point.x, self.next_point.y}")
                 distance_to_next_point = self.location.distance_to_point(self.next_point)
 
                 distance_travelled = min(distance_to_travel, distance_to_next_point)
@@ -485,7 +485,7 @@ class Drone:
                     # Instance 2.1a: Reached point, getting ready for next point
                     if len(self.remaining_points) > 0:
                         self.next_point = self.remaining_points.pop(0)
-                        logger.debug(f"Setting next point to {self.next_point}")
+                        # logger.debug(f"Setting next point to {self.next_point}")
                     # Instance 2.1b: Reached point, was final point on route
                     else:
                         self.reached_end_of_route()
@@ -496,21 +496,21 @@ class Drone:
                             self.debug()
                         return
 
-                    logger.debug(
-                        f"UAV {self.uav_id} has {distance_to_travel} remaining - next point {self.next_point}, "
-                        f"location is {self.location.x, self.location.y}")
+                    # logger.debug(
+                    #     f"UAV {self.uav_id} has {distance_to_travel} remaining - next point {self.next_point}, "
+                    #     f"location is {self.location.x, self.location.y}")
 
                 # Instance 2.2: We travel towards the next point but do not reach it
                 else:
-                    logger.debug(f"Current point is ({self.location.x}, {self.location.y}). \n"
-                                 f"Next point is {self.next_point} at ({self.next_point.x}, {self.next_point.y})")
+                    # logger.debug(f"Current point is ({self.location.x}, {self.location.y}). \n"
+                    #              f"Next point is {self.next_point} at ({self.next_point.x}, {self.next_point.y})")
                     part_of_route = (distance_travelled / distance_to_next_point)
-                    logger.debug(f"{part_of_route= :.3f}, {self.location.x= :.3f}, {self.location.y= :.3f}, "
-                                 f"{self.next_point.x= :.3f}, {self.next_point.y= :.3f} ")
+                    # logger.debug(f"{part_of_route= :.3f}, {self.location.x= :.3f}, {self.location.y= :.3f}, "
+                    #              f"{self.next_point.x= :.3f}, {self.next_point.y= :.3f} ")
                     new_x = self.location.x + part_of_route * (self.next_point.x - self.location.x)
                     new_y = self.location.y + part_of_route * (self.next_point.y - self.location.y)
                     self.location = Point(new_x, new_y, name="UAV " + str(self.uav_id))
-                    logger.debug(f"Moved to {self.location.x: .3f}, {self.location.y: .3f}")
+                    # logger.debug(f"Moved to {self.location.x: .3f}, {self.location.y: .3f}")
                     t_1 = time.perf_counter()
                     constants.time_spent_uav_route_move += (t_1 - t_0)
 
@@ -555,13 +555,13 @@ class Drone:
         if self.routing_to_start:
             self.routing_to_start = False
             self.patrolling = True
-            logger.debug(f"UAV {self.uav_id} arrived at start of patrol ({self.location})")
+            # logger.debug(f"UAV {self.uav_id} arrived at start of patrol ({self.location})")
         elif self.routing_to_base:
             self.routing_to_base = False
             self.land()
-            logger.debug(f"UAV {self.uav_id} arrived back at base ({self.location})")
+            # logger.debug(f"UAV {self.uav_id} arrived back at base ({self.location})")
         elif self.trailing:
-            logger.debug(f"Trailing UAV caught up with {self.located_ship}")
+            # logger.debug(f"Trailing UAV caught up with {self.located_ship}")
             pass
 
     def is_near(self, location: Point) -> bool:
@@ -591,15 +591,15 @@ class Drone:
                     detection_probabilities.append(self.roll_detection_check(uav_location, ship, distance))
             probability = 1 - np.prod([(1 - p) ** (1 / self.world.splits_per_step) for p in detection_probabilities])
             if np.random.rand() <= probability:
-                logger.debug(f"UAV {self.uav_id} detected {ship.ship_id} - w/ prob {probability}. "
-                             f"- {self.routing_to_base=}")
+                # logger.debug(f"UAV {self.uav_id} detected {ship.ship_id} - w/ prob {probability}. "
+                #              f"- {self.routing_to_base=}")
                 if not self.routing_to_base:
                     self.start_trailing(ship)
                 t_1 = time.perf_counter()
                 constants.time_spent_observing_area += (t_1 - t_0)
                 return
             else:
-                logger.debug(f"UAV {self.uav_id} failed to detect ship {ship.ship_id} - detect prob {probability}.")
+                # logger.debug(f"UAV {self.uav_id} failed to detect ship {ship.ship_id} - detect prob {probability}.")
                 pass
 
         t_1 = time.perf_counter()
@@ -735,7 +735,7 @@ class Drone:
         if min_endurance_required * (1 + constants.SAFETY_ENDURANCE) > remaining_endurance:
             return False
 
-        logger.debug(f"Checking if UAV {self.uav_id} can reach {target} and return to {self.base.location}")
+        # logger.debug(f"Checking if UAV {self.uav_id} can reach {target} and return to {self.base.location}")
         path_to_point = routes.create_route(self.location, target, polygons_to_avoid=self.world.polygons)
         path_to_base = routes.create_route(target, self.base.location, polygons_to_avoid=self.world.polygons)
         total_length = path_to_point.length + path_to_base.length
@@ -774,7 +774,6 @@ class Drone:
         self.grounded = True
         self.update_plot()
 
-        logger.debug(f"Removing {self} from current airborne UAVs")
         self.world.current_airborne_drones.remove(self)
         self.drone_type.drone_landed()
 
@@ -783,8 +782,8 @@ class Drone:
         self.start_maintenance()
 
     def generate_route(self, destination):
-        logger.debug(f"Creating route from {self.location} to {destination} for UAV {self.uav_id} \n"
-                     f"{self.trailing=}, {self.routing_to_start=}, {self.routing_to_base=}")
+        # logger.debug(f"Creating route from {self.location} to {destination} for UAV {self.uav_id} \n"
+        #              f"{self.trailing=}, {self.routing_to_start=}, {self.routing_to_base=}")
         self.route = create_route(point_a=self.location, point_b=destination,
                                   polygons_to_avoid=self.polygons_to_avoid)
         self.past_points.append(self.route.points[0])

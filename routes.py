@@ -76,9 +76,13 @@ def create_route(point_a: Point, point_b: Point, polygons_to_avoid: list) -> Rou
             logger.error(f"Unable to create route from {point_a} at ({point_a.x}, {point_a.y}) to {point_b} at "
                          f"({point_b.x, point_b.y}) "
                          f"around {obstacle}, going through edge: {point_k}, {point_l}")
+            point_a.add_point_to_plot(axes=constants.axes_plot, color="yellow", text="a")
+            point_b.add_point_to_plot(axes=constants.axes_plot, color="yellow", text="b")
             point_k.add_point_to_plot(axes=constants.axes_plot, color="yellow", text="k")
             point_l.add_point_to_plot(axes=constants.axes_plot, color="yellow", text="l")
             obstacle.add_polygon_to_plot(axes=constants.axes_plot, color="black", opacity=0.3)
+            for p in obstacle.points:
+                p.add_point_to_plot(axes=constants.axes_plot, color="purple")
             Route(route).add_route_to_plot(axes=constants.axes_plot)
             raise TimeoutError(f"Unable to create route from {point_a} to {point_b} "
                                f"around {obstacle}, going through edge: {point_k}, {point_l}")
@@ -270,7 +274,11 @@ def merge_paths(path_precede: list, path_follow: list, target: Point) -> list:
     return path
 
 
-def insert_path_in_c_h(path: list, c_h: list, target: Point):
+def insert_path_in_c_h(path: list, c_h: list, target):
+    logger.debug(f"path: {[str(p) for p in path]} \n"
+                 f"c_h: {[str(p) for p in c_h]} \n"
+                 f"target: {target}")
+
     preceding_point = path[0]
     following_point = path[-1]
 
@@ -284,33 +292,36 @@ def insert_path_in_c_h(path: list, c_h: list, target: Point):
         points_preceding_first = c_h[preceding_index:] + c_h[:following_index + 1]
         points_following_first = c_h[following_index:preceding_index + 1]
 
-    # logger.debug(f"Path is {[str(p) for p in path]}, {preceding_index=}, {following_index=} \n"
-    #              f"preceding points: {[str(p) for p in points_preceding_first]}, "
-    #              f"following points: {[str(p) for p in points_following_first]}, "
-    #              f"C_h is: {[str(p) for p in c_h]}")
+    logger.debug(f"Path is {[str(p) for p in path]} \n"
+                 f"{str(preceding_point)=}, {str(following_point)=} \n"
+                 f"{preceding_index=}, {following_index=} \n"
+                 f"preceding points: {[str(p) for p in points_preceding_first]}, \n"
+                 f"following points: {[str(p) for p in points_following_first]}, \n"
+                 f"C_h is: {[str(p) for p in c_h]}")
 
-    if len(points_following_first) < len(points_preceding_first):
+    if len(points_following_first) <= len(points_preceding_first):
         path.reverse()
+        logger.debug(f"Considering reversed path: {[str(x) for x in path]}")
         index_point = following_index
         for p in path:
             if p not in c_h:
                 c_h.insert(index_point + 1, p)
-                # logger.debug(f"Following - Inserted {p} at {index_point + 1} \n C_h is: {[str(p) for p in c_h]}")
+                logger.debug(f"Following - Inserted {p} at {index_point + 1} \n C_h is: {[str(x) for x in c_h]}")
                 index_point = c_h.index(p)
             else:
                 index_point = c_h.index(p)
-                # logger.debug(f"Following - {p} already in c_h, setting index to {index_point}")
+                logger.debug(f"Following - {p} already in c_h, setting index to {index_point}")
     else:
+        logger.debug(f"Keeping path order")
         index_point = preceding_index
         for p in path:
             if p not in c_h:
                 c_h.insert(index_point + 1, p)
-                # logger.debug(f"Preceding - Inserted {p} at {index_point} \n C_h is: {[str(p) for p in c_h]}")
+                logger.debug(f"Preceding - Inserted {p} at {index_point} \n C_h is: {[str(x) for x in c_h]}")
                 index_point = c_h.index(p)
             else:
                 index_point = c_h.index(p)
-                # logger.debug(f"Preceding - {p} already in c_h, setting index to {index_point}")
-
+                logger.debug(f"Preceding - {p} already in c_h, setting index to {index_point}")
 
 def re_add_point_to_hull(target: Point, c_h: list, obstacle: Polygon) -> list:
     """
@@ -320,7 +331,7 @@ def re_add_point_to_hull(target: Point, c_h: list, obstacle: Polygon) -> list:
     :param obstacle:
     :return:
     """
-    # logger.debug(f"READDING {target} to convex hull - {[str(p) for p in c_h]} - obstacle: {[str(p) for p in c_h]}")
+    logger.debug(f"READDING {target} to convex hull - {[str(p) for p in c_h]} - obstacle: {[str(p) for p in c_h]}")
     if target in c_h:
         return c_h
 
@@ -449,40 +460,29 @@ def add_point_to_poly_points(obstacle: Polygon, k: Point, l: Point, m: Point, li
     :param m:
     :return: Updated the list of points
     """
-    distances = []
+
     poly_points = obstacle.points.copy()
-    if l not in poly_points:
-        points_between_k_and_m = get_points_between_a_b(a=k, b=m, polygon=obstacle)
+    distances = []
 
-        # logger.debug(f"Points between k ({k}) and m ({m}) is: {[str(p) for p in points_between_k_and_m]}")
-        # Consider all pairs of points between k and m (inclusive),
-        # see if we can add point L inbetween and calculate the distance if we can
-        for index, a in enumerate(points_between_k_and_m):
-            if index < len(points_between_k_and_m) - 1:
-                b = points_between_k_and_m[index + 1]
-            else:
-                b = points_between_k_and_m[0]
-
-            a_obstructed = obstacle.check_if_line_through_polygon(p_1=a, p_2=l)
-            b_obstructed = obstacle.check_if_line_through_polygon(p_1=l, p_2=b)
-            # logger.debug(f"Checking if we can add {str(l)} between {str(a)} and {str(b)} -"
-            #              f" {a_obstructed}, {b_obstructed}")
-            if not a_obstructed and not b_obstructed:
-                total_dist = l.distance_to_point(a) + l.distance_to_point(b)
-                distances.append([[a, b], total_dist])
-
-    else:
+    if l in poly_points:
         return
+
+    for a, b in zip(poly_points, poly_points[1:] + [poly_points[0]]):
+        a_obstructed = obstacle.check_if_line_through_polygon(p_1=a, p_2=l)
+        b_obstructed = obstacle.check_if_line_through_polygon(p_1=l, p_2=b)
+
+        if not a_obstructed and not b_obstructed:
+            total_dist = l.distance_to_point(a) + l.distance_to_point(b)
+            distances.append([[a, b], total_dist])
 
     if len(distances) == 0:
-        # logger.debug(f"Distances is length 0")
-        return
+        raise ValueError(f"No valid way of adding {l} to {[str(p) for p in poly_points]}")
 
     min_coords = min(distances, key=lambda x: x[1])[0]
     a, b = min_coords
 
     # Add point l between a and b
-    # logging.debug(f"Inserting {str(l)} at index {poly_points.index(b)} (at [{str(b)}])")
+    logging.debug(f"Inserting {str(l)} at index {poly_points.index(b)} (at [{str(b)}])")
     list_of_points.insert(poly_points.index(b), l)
 
 
@@ -491,7 +491,7 @@ def create_path_along_polygon_between_points(start_point: Point, target: Point,
     points_to_travel_from = [start_point] + routing_points
 
     path = []
-    # logger.debug(f"Creating path from {start_point} to {target}. Routing points: {[str(p) for p in routing_points]}")
+    logger.debug(f"Creating path from {start_point} to {target}. Routing points: {[str(p) for p in routing_points]}")
     for point in points_to_travel_from:
         obstructed = obstacle.check_if_line_through_polygon(point, target)
         if obstructed:
@@ -502,7 +502,7 @@ def create_path_along_polygon_between_points(start_point: Point, target: Point,
 
         # if we can reach point, complete the path
         else:
-            # logger.debug(f"Able to reach {target} from {point}")
+            logger.debug(f"Able to reach {target} from {point}")
             path.extend([point, target])
             # Check if we can remove intermediate points
             if len(path) >= 2:

@@ -338,13 +338,30 @@ world = World(time_delta=0.2)
 
 for z in range(1000000):
     world.time_step()
+
+# FOR TESTING PURPOSES
+# for uav in world.drones:
+#     if uav.uav_id == 1:
+#         U = uav
+#         break
+#
+# U.launch(world)
+# U.reached_end_of_route()
+# U.location = Point(128.03137253870463, 26.701604590193774, name="TARGET UAV")
+# U.base.location = Point(127.60904425185953, 26.701604590193774, name="TARGET POINT")
+# U.return_to_base()
+# world.plot_world_update()
+# U.move()
+
+# ------------------------
+
 t_1 = time.perf_counter()
 
 print(f"TOTAL TIME: {(t_1 - t_0) / 60} \n"
-      f"Time spent on Navy: {world.time_spent_on_navy/60} \n"
-      f"Time spent on UAVs: {world.time_spent_on_UAVs/60} \n"
+      f"Time spent on Navy: {world.time_spent_on_navy / 60} \n"
+      f"Time spent on UAVs: {world.time_spent_on_UAVs / 60} \n"
       f"Time spent deprecating pheromones: {constants.time_spent_depreciating_pheromones / 60} \n"
-      f"Time spent plotting: {world.time_spent_plotting/60} \n")
+      f"Time spent plotting: {world.time_spent_plotting / 60} \n")
 print(f"Time spent on: \n"
       f"Creating routes: {constants.time_spent_creating_routes / 60} \n"
       f"Calculating distance: {constants.time_spent_calculating_distance / 60} \n"
@@ -352,7 +369,7 @@ print(f"Time spent on: \n"
       f"Spreading Pheromones: {constants.time_spreading_pheromones / 60} \n"
       f"Updating Route: {constants.time_spent_updating_trail_route / 60} \n"
       f"UAV Moving through route: {constants.time_spent_uav_route_move / 60} \n"
-      f"UAV return checks: {constants.time_spent_checking_uav_return /60} \n"
+      f"UAV return checks: {constants.time_spent_checking_uav_return / 60} \n"
       f"Following Routes: {constants.time_spent_following_route / 60} \n"
       f"Launching Drones: {constants.time_spent_launching_drones / 60} \n"
       f"Observing Area: {constants.time_spent_observing_area / 60} \n")
