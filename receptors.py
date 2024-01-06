@@ -167,7 +167,8 @@ class ReceptorGrid:
         for receptor in self.receptors:
             if receptor.decay:
                 receptor.pheromones = (receptor.pheromones *
-                                       constants.PHEROMONE_DEPRECIATION_FACTOR_PER_TIME_DELTA**(1/self.world.time_delta))
+                                       constants.PHEROMONE_DEPRECIATION_FACTOR_PER_TIME_DELTA
+                                       ** (1/self.world.time_delta))
 
     def calculate_CoP(self, point: Point, radius: float) -> (float, list):
         """

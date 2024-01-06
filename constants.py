@@ -3,7 +3,7 @@ axes_plot = None
 
 ITERATION_LIMIT = 50
 DEBUG_MODE = True
-PLOTTING_MODE = False
+PLOTTING_MODE = True
 
 # ---- PERFORMANCE MEASURING ----
 
@@ -64,7 +64,7 @@ PATROL_MAX_LAT = 150
 PATROL_MIN_LONG = 10
 PATROL_MAX_LONG = 40
 
-UAV_AVAILABILITY = 0.4
+UAV_AVAILABILITY = 0.5
 
 MODEL_DICTIONARIES = [{"name": "WLI_GJI",
                        "speed": 210,
