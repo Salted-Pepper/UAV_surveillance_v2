@@ -27,7 +27,8 @@ logger.setLevel(logging.DEBUG)
 
 class Receptor:
     def __init__(self, x, y, in_polygon=False) -> None:
-        # TODO: Receptors currently only 100 when IN a landmass -> change to territorial waters (input diff polygon)
+        # TODO: Receptors currently only 100 when IN a landmass ->
+        #  change to territorial waters depending on rules (input diff polygon)
         #  - also finetune value
 
         if in_polygon:
@@ -40,10 +41,34 @@ class Receptor:
             self.pheromones = np.random.uniform(0, 0.1)
             self.decay = True
 
+        # Sea State Variables
+        self.sea_state = 2  # common start sea-state
+        self.last_uniform_value = 0.5  # just to define previous value, expected value of uniform
+        self.new_uniform_value = 0.5
+
         self.location = Point(x, y)
         self.in_polygon = in_polygon
 
         self.patch = None
+
+        # Adjacent receptors:
+        self.adjacent_N = None
+        self.adjacent_NE = None
+        self.adjacent_E = None
+        self.adjacent_SE = None
+        self.adjacent_S = None
+        self.adjacent_SW = None
+        self.adjacent_W = None
+        self.adjacent_NW = None
+
+        self.adjacent_receptors = [self.adjacent_N,
+                                   self.adjacent_NE,
+                                   self.adjacent_E,
+                                   self.adjacent_SE,
+                                   self.adjacent_S,
+                                   self.adjacent_SW,
+                                   self.adjacent_W,
+                                   self.adjacent_NW]
 
     def __str__(self):
         return f"Receptor at: {self.location} - with pheromones {self.pheromones}"
@@ -51,6 +76,7 @@ class Receptor:
     def initiate_plot(self, axes, cmap):
         if not constants.PLOTTING_MODE:
             return axes
+
         self.patch = matplotlib.patches.Circle((self.location.x, self.location.y),
                                                radius=0.05, color=cmap(self.pheromones / 100),
                                                alpha=0.5, linewidth=None)
@@ -60,8 +86,14 @@ class Receptor:
     def update_plot(self, axes, cmap):
         if not constants.PLOTTING_MODE:
             return
-        self.patch.set_facecolor(cmap(self.pheromones / 100))
-        self.patch.set_edgecolor(cmap(self.pheromones / 100))
+        if constants.RECEPTOR_PLOT_PARAMETER == "pheromones":
+            self.patch.set_facecolor(cmap(self.pheromones / 100))
+            self.patch.set_edgecolor(cmap(self.pheromones / 100))
+        elif constants.RECEPTOR_PLOT_PARAMETER == "sea_states":
+            self.patch.set_facecolor(cmap(self.sea_state / 6))
+            self.patch.set_edgecolor(cmap(self.sea_state / 6))
+            # self.patch.set_facecolor(cmap(self.new_uniform_value))
+            # self.patch.set_edgecolor(cmap(self.new_uniform_value))
         return axes
 
     def in_range_of_point(self, point: Point, radius: float) -> bool:
@@ -83,7 +115,13 @@ class ReceptorGrid:
         self.polygons = polygons
 
         self.initiate_grid(polygons)
-        self.cmap = plt.get_cmap("Greens")
+
+        if constants.RECEPTOR_PLOT_PARAMETER == "pheromones":
+            self.cmap = plt.get_cmap("Greens")
+        elif constants.RECEPTOR_PLOT_PARAMETER == "sea_states":
+            self.cmap = plt.get_cmap("OrRd")
+        else:
+            self.cmap = plt.get_cmap("Greys")
 
     def initiate_grid(self, polygons) -> None:
         """
@@ -112,6 +150,44 @@ class ReceptorGrid:
                                                                       exclude_edges=False)
                 self.receptors.append(Receptor(x=x_location, y=y_location, in_polygon=in_polygon))
 
+        self.set_up_adjacent_connections()
+
+    def set_up_adjacent_connections(self):
+        for receptor in self.receptors:
+            if is_in_area_of_interest(receptor.location):
+                x, y = receptor.location.x, receptor.location.y
+                receptor.adjacent_N = self.get_receptor_at_location(Point(x, y + constants.GRID_HEIGHT))
+                receptor.adjacent_NE = self.get_receptor_at_location(Point(x + constants.GRID_WIDTH,
+                                                                           y + constants.GRID_HEIGHT))
+                receptor.adjacent_E = self.get_receptor_at_location(Point(x + constants.GRID_WIDTH,
+                                                                          y))
+                receptor.adjacent_SE = self.get_receptor_at_location(Point(x + constants.GRID_WIDTH,
+                                                                           y - constants.GRID_HEIGHT))
+                receptor.adjacent_S = self.get_receptor_at_location(Point(x,
+                                                                          y - constants.GRID_HEIGHT))
+                receptor.adjacent_SW = self.get_receptor_at_location(Point(x - constants.GRID_WIDTH,
+                                                                           y - constants.GRID_HEIGHT))
+                receptor.adjacent_W = self.get_receptor_at_location(Point(x - constants.GRID_WIDTH,
+                                                                          y))
+                receptor.adjacent_NW = self.get_receptor_at_location(Point(x - constants.GRID_WIDTH,
+                                                                           y + constants.GRID_HEIGHT))
+
+    def get_receptor_at_location(self, point: Point) -> Receptor | None:
+        min_lat = constants.MIN_LAT - constants.LAT_GRID_EXTRA
+        max_lat = constants.MAX_LAT + constants.LAT_GRID_EXTRA
+
+        min_lon = constants.MIN_LONG - constants.LONG_GRID_EXTRA
+        max_lon = constants.MAX_LONG + constants.LONG_GRID_EXTRA
+
+        if max_lat < point.x or point.x < min_lat or max_lon < point.y or point.y < min_lon:
+            return None
+
+        row = int((point.x - min_lat) / constants.GRID_HEIGHT)
+        col = int((point.y - min_lon) / constants.GRID_WIDTH)
+        index = row * self.max_cols + col
+
+        return self.receptors[index]
+
     def select_receptors_in_radius(self, point: Point, radius: float) -> list:
         """
         Select all the receptors within a radius of a point.
@@ -126,8 +202,6 @@ class ReceptorGrid:
         # only check receptors in the rectangle of size radius - select receptors in the list based on
         # how the list is constructed.
         x, y = point.x, point.y
-        # print(f"Looking for receptors around ({x:.3f},{y:.3f}) with radius {radius}, "
-        #       f"max_rows {self.max_rows}, max_cols {self.max_cols}")
         min_x = x - lon_lat_radius
         max_x = x + lon_lat_radius
         min_y = y - lon_lat_radius
@@ -144,13 +218,7 @@ class ReceptorGrid:
         max_col = int(min(np.ceil((max_y - (constants.MIN_LONG - constants.LONG_GRID_EXTRA))
                                   / constants.GRID_WIDTH), self.max_cols))
 
-        # num_cols = int(np.ceil(((constants.MAX_LONG + constants.LONG_GRID_EXTRA) -
-        #                         (constants.MIN_LONG - constants.LONG_GRID_EXTRA))
-        #                        // constants.GRID_WIDTH))
-
         receptors_in_radius = []
-        # logger.debug(f"{min_row=}, {max_row=}, {min_col=}, {max_col=}")
-        # print(f"{min_row=}, {max_row=}, {min_col=}, {max_col=}")
         for row_index in range(min_row, max_row):
             for col_index in range(min_col, max_col):
                 index = self.max_cols * row_index + col_index
@@ -163,12 +231,35 @@ class ReceptorGrid:
         constants.time_spent_selecting_receptors += (t_1 - t_0)
         return receptors_in_radius
 
+    def get_closest_receptor(self, point: Point) -> Receptor:
+        h_space_between_receptors = constants.GRID_WIDTH
+        v_space_between_receptors = constants.GRID_HEIGHT
+
+        radius = max(h_space_between_receptors, v_space_between_receptors)
+
+        potential_receptors = self.select_receptors_in_radius(point, radius)
+
+        dist = math.inf
+
+        selected_receptor = None
+
+        for receptor in potential_receptors:
+            distance_to_receptor = receptor.location.distance_to_point(point)
+            if distance_to_receptor < dist:
+                dist = distance_to_receptor
+                selected_receptor = receptor
+
+        if selected_receptor is None:
+            raise ValueError(f"Failed to find suitable receptor at {point}.")
+
+        return selected_receptor
+
     def depreciate_pheromones(self):
         for receptor in self.receptors:
             if receptor.decay:
                 receptor.pheromones = (receptor.pheromones *
                                        constants.PHEROMONE_DEPRECIATION_FACTOR_PER_TIME_DELTA
-                                       ** (1/self.world.time_delta))
+                                       ** (1 / self.world.time_delta))
 
     def calculate_CoP(self, point: Point, radius: float) -> (float, list):
         """

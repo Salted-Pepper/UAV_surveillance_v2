@@ -3,15 +3,14 @@ Ties all the agents together for a single simulation and collects the data.
 A world has a set time delta, which sets the time-jumps per simulation step.
 A time delta of 1 corresponds to jumps of 1 hour real time.
 """
-# TODO: Improve overall efficiency:
-# Ideas: Do not always recalculate a route back for drones
-# ..
 
 import datetime
 import logging
 from logging.handlers import RotatingFileHandler
 import os
 import time
+
+import weather_data
 
 if not os.path.exists("logs"):
     os.makedirs("logs")
@@ -73,6 +72,8 @@ class World:
 
         # World Variable Characteristics
         self.weather = None
+        self.time_last_weather_update = 0
+        self.wind_direction = "East"  # Direction wind is COMING from
         self.time_delta = time_delta  # In Hours
         # Usage of more detailed splits for instances of accuracy
         self.splits_per_step = int(np.ceil(constants.UAV_MOVEMENT_SPLITS_P_H * self.time_delta))
@@ -195,7 +196,6 @@ class World:
         if include_receptors:
             for receptor in self.receptor_grid.receptors:
                 self.ax = receptor.initiate_plot(self.ax, self.receptor_grid.cmap)
-        print(f"Setting constants axes plot to {self.ax}")
         constants.axes_plot = self.ax
 
         plt.show()
@@ -237,7 +237,7 @@ class World:
         :return: Integer number of ships entering
         """
         # TODO: Sample from poisson with rate lambda as in overleaf
-        if np.random.rand() > 0.97:
+        if np.random.rand() > 0.99:
             return 1
         else:
             return 0
@@ -271,6 +271,8 @@ class World:
         print(f"Starting iteration {self.world_time: .3f}")
         self.world_time += self.time_delta
 
+        self.update_weather_conditions()
+
         for uav in self.drones:
             if uav.under_maintenance:
                 uav.check_if_complete_maintenance()
@@ -298,6 +300,18 @@ class World:
         self.time_spent_plotting += (t_1 - t_0)
 
         logger.debug(f"End of iteration {self.world_time: .3f} \n")
+
+    def update_weather_conditions(self):
+        # TODO: How to ensure that the nearby world is correlated, rather than individual pieces?
+        """
+        Updates the weather and samples sea states pending.
+        :return:
+        """
+        if self.world_time - self.time_last_weather_update > constants.WEATHER_RESAMPLING_TIME_SPLIT:
+            print(f"UPDATING SEA STATES")
+            self.time_last_weather_update = self.world_time
+            weather_data.update_sea_states(self)
+            return
 
 
 class Landmass:
@@ -333,43 +347,44 @@ class Dock:
         return axes
 
 
-t_0 = time.perf_counter()
-world = World(time_delta=0.2)
+if __name__ == "__main__":
+    t_0 = time.perf_counter()
+    world = World(time_delta=0.2)
 
-for z in range(1000000):
-    world.time_step()
+    for z in range(10000):
+        world.time_step()
 
-# FOR TESTING PURPOSES
-# for uav in world.drones:
-#     if uav.uav_id == 1:
-#         U = uav
-#         break
-#
-# U.launch(world)
-# U.reached_end_of_route()
-# U.location = Point(128.03137253870463, 26.701604590193774, name="TARGET UAV")
-# U.base.location = Point(127.60904425185953, 26.701604590193774, name="TARGET POINT")
-# U.return_to_base()
-# world.plot_world_update()
-# U.move()
+    # FOR TESTING PURPOSES
+    # for uav in world.drones:
+    #     if uav.uav_id == 1:
+    #         U = uav
+    #         break
+    #
+    # U.launch(world)
+    # U.reached_end_of_route()
+    # U.location = Point(128.03137253870463, 26.701604590193774, name="TARGET UAV")
+    # U.base.location = Point(127.60904425185953, 26.701604590193774, name="TARGET POINT")
+    # U.return_to_base()
+    # world.plot_world_update()
+    # U.move()
 
-# ------------------------
+    # ------------------------
 
-t_1 = time.perf_counter()
+    t_1 = time.perf_counter()
 
-print(f"TOTAL TIME: {(t_1 - t_0) / 60} \n"
-      f"Time spent on Navy: {world.time_spent_on_navy / 60} \n"
-      f"Time spent on UAVs: {world.time_spent_on_UAVs / 60} \n"
-      f"Time spent deprecating pheromones: {constants.time_spent_depreciating_pheromones / 60} \n"
-      f"Time spent plotting: {world.time_spent_plotting / 60} \n")
-print(f"Time spent on: \n"
-      f"Creating routes: {constants.time_spent_creating_routes / 60} \n"
-      f"Calculating distance: {constants.time_spent_calculating_distance / 60} \n"
-      f"Making Patrol Moves: {constants.time_spent_making_patrol_moves / 60} \n"
-      f"Spreading Pheromones: {constants.time_spreading_pheromones / 60} \n"
-      f"Updating Route: {constants.time_spent_updating_trail_route / 60} \n"
-      f"UAV Moving through route: {constants.time_spent_uav_route_move / 60} \n"
-      f"UAV return checks: {constants.time_spent_checking_uav_return / 60} \n"
-      f"Following Routes: {constants.time_spent_following_route / 60} \n"
-      f"Launching Drones: {constants.time_spent_launching_drones / 60} \n"
-      f"Observing Area: {constants.time_spent_observing_area / 60} \n")
+    print(f"TOTAL TIME: {(t_1 - t_0) / 60} \n"
+          f"Time spent on Navy: {world.time_spent_on_navy / 60} \n"
+          f"Time spent on UAVs: {world.time_spent_on_UAVs / 60} \n"
+          f"Time spent deprecating pheromones: {constants.time_spent_depreciating_pheromones / 60} \n"
+          f"Time spent plotting: {world.time_spent_plotting / 60} \n")
+    print(f"Time spent on: \n"
+          f"Creating routes: {constants.time_spent_creating_routes / 60} \n"
+          f"Calculating distance: {constants.time_spent_calculating_distance / 60} \n"
+          f"Making Patrol Moves: {constants.time_spent_making_patrol_moves / 60} \n"
+          f"Spreading Pheromones: {constants.time_spreading_pheromones / 60} \n"
+          f"Updating Route: {constants.time_spent_updating_trail_route / 60} \n"
+          f"UAV Moving through route: {constants.time_spent_uav_route_move / 60} \n"
+          f"UAV return checks: {constants.time_spent_checking_uav_return / 60} \n"
+          f"Following Routes: {constants.time_spent_following_route / 60} \n"
+          f"Launching Drones: {constants.time_spent_launching_drones / 60} \n"
+          f"Observing Area: {constants.time_spent_observing_area / 60} \n")

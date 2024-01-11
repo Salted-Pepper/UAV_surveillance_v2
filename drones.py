@@ -605,13 +605,25 @@ class Drone:
         t_1 = time.perf_counter()
         constants.time_spent_observing_area += (t_1 - t_0)
 
-    @staticmethod
-    def roll_detection_check(uav_location, ship: Ship, distance: float = None) -> float:
+    def roll_detection_check(self, uav_location, ship: Ship, distance: float = None) -> float:
         if distance is None:
             distance = calculate_distance(a=uav_location, b=ship.location)
 
-        # TODO: Add weather parameter
-        weather = 0.77  # To implement - see sea state in drive file.
+        # Get weather conditions in area
+        closest_receptor = self.world.receptor_grid.get_closest_receptor(ship.location)
+        sea_state = closest_receptor.sea_state
+        sea_state_to_parameter = {1: 0.89,
+                                  2: 0.77,
+                                  3: 0.68,
+                                  4: 0.62,
+                                  5: 0.53,
+                                  6: 0.47}
+
+        if sea_state < 7:
+            weather = sea_state_to_parameter[sea_state]
+        else:
+            weather = 0.40
+
         height = 10  # Assumed to be 10km
         top_frac_exp = constants.K_CONSTANT * height * ship.RCS * weather
         if distance < 1:

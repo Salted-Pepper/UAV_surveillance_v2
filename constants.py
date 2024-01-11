@@ -2,8 +2,10 @@
 axes_plot = None
 
 ITERATION_LIMIT = 50
-DEBUG_MODE = True
+DEBUG_MODE = False
 PLOTTING_MODE = True
+
+RECEPTOR_PLOT_PARAMETER = "sea_states"  # ["sea_states", "pheromones"]
 
 # ---- PERFORMANCE MEASURING ----
 
@@ -22,6 +24,8 @@ time_spent_launching_drones = 0
 time_spent_selecting_receptors = 0
 
 # ---- World Constants ----
+WEATHER_RESAMPLING_TIME_SPLIT = 1
+
 CARGO_DAILY_ARRIVAL_MEAN = 30
 BULK_DAILY_ARRIVAL_MEAN = 30
 CONTAINER_DAILY_ARRIVAL_MEAN = 30
@@ -32,13 +36,40 @@ MAX_LAT = 150
 MIN_LONG = 5
 MAX_LONG = 50
 
-GRID_WIDTH = 1
+GRID_WIDTH = 0.5
 GRID_HEIGHT = GRID_WIDTH
 
 PLOT_SIZE = 7
 
-LAT_GRID_EXTRA = 8
-LONG_GRID_EXTRA = 8
+LAT_GRID_EXTRA = 4
+LONG_GRID_EXTRA = 4
+
+
+# ----- World Rules ------
+
+japan_route = False  # TODO: Route through Japanese territorial waters
+
+# ESCORT BEHAVIOUR
+# TODO: Implement
+escort_behaviour = "chase"  # ["chase", "patrol", "alongside"]
+
+# HUNTER RULES
+# TODO: Implement
+hunter_behaviour = "respect_exclusion"  # ["respect_exclusion", "cross_if_pursuit", "free_hunt"]
+# respect_exclusion: Hunters stay out of exclusion zone all the time [default]
+# cross_if_pursuit: Hunters cross exclusion zone if in pursuit of merchant and NO ESCORT is present
+# free_hunt: Hunters hunt in exclusion zone (accepting casualties from escorts, aircraft, attack helicopters, or CDCMs)
+
+# TAIWAN ESCORT RULES
+# TODO: Implement
+engage_hunter = "attack_all"  # ["engaged_only", "attack_all"] -
+# engaged_only: only engages hunters in the act of boarding or attacking merchants, and all hunters in exclusion zone
+# attack_all  : Attack all hunters
+
+# JAPAN ENGAGEMENT RULES
+# TODO: Implement
+japan_engagement = "never_attack"  # ["never_attack",  "attack_territorial", "attack_contiguous_zone",
+#                                    "attack_inner_ADIZ", "attack_outer_ADIZ", "attack_all"]
 
 # ---- Pheromone ----
 PHEROMONE_DEPRECIATION_FACTOR_PER_TIME_DELTA = 0.99
@@ -64,7 +95,7 @@ PATROL_MAX_LAT = 150
 PATROL_MIN_LONG = 10
 PATROL_MAX_LONG = 40
 
-UAV_AVAILABILITY = 0.5
+UAV_AVAILABILITY = 0.4
 
 MODEL_DICTIONARIES = [{"name": "WLI_GJI",
                        "speed": 210,
@@ -209,7 +240,7 @@ MODEL_DICTIONARIES = [{"name": "WLI_GJI",
 
 # ---- Detection Parameters ----
 UAV_MOVEMENT_SPLITS_P_H = 24  # (24 is at least 2 every 5 mins) Splits per hour - gets recalculated per timedelta
-PATROL_LOCATIONS = 10
+PATROL_LOCATIONS = 10  # Number of locations to sample and compare
 
 K_CONSTANT = 39_633
 
@@ -237,6 +268,10 @@ CONTAINER_RCS = 1.5
 # ---- Plotting Constants -----
 WORLD_MARKER_SIZE = 7
 
-MERCHANT_COLOR = "forestgreen"
+MERCHANT_COLOR = "black"
+US_ESCORT = "navy"
+TAIWAN_ESCORT = "forestgreen"
+JAPAN_ESCORT = "white"
+
 UAV_COLOR = "indianred"
 RECEPTOR_COLOR = "green"

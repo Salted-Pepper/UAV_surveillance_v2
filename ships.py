@@ -24,6 +24,7 @@ ship_id = 0
 
 
 class Ship:
+
     def __init__(self, model: Literal['Cargo', 'Bulk', 'Container'], world):
 
         # General Properties
