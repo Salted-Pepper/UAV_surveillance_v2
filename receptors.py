@@ -237,7 +237,7 @@ class ReceptorGrid:
 
         radius = max(h_space_between_receptors, v_space_between_receptors)
 
-        potential_receptors = self.select_receptors_in_radius(point, radius)
+        potential_receptors = self.select_receptors_in_radius(point, radius * 1.5)
 
         dist = math.inf
 
