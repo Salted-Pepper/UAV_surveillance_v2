@@ -24,7 +24,7 @@ from drones import Drone, DroneType, Airbase
 from points import Point
 from polygons import Polygon
 from receptors import ReceptorGrid
-from ships import Ship, generate_random_ship
+from ships import Ship, Merchant, generate_random_merchant
 
 date = datetime.date.today()
 
@@ -155,7 +155,7 @@ class World:
         # TODO: Decide method on how to distribute over airbases (50/50 per type? Certain ratios?)
         logger.debug("Initiating Drones...")
 
-        for model in constants.MODEL_DICTIONARIES:
+        for model in constants.UAV_MODELS:
             drone_type = DroneType(name=model['name'],
                                    amount=np.floor(model['number_of_airframes'] * constants.UAV_AVAILABILITY))
             self.drone_types.append(drone_type)
@@ -219,9 +219,9 @@ class World:
         self.fig.canvas.flush_events()
         plt.show()
 
-    def ship_enters(self, ship: Ship) -> None:
-        ship.enter_world(self)
-        self.current_vessels.append(ship)
+    def merchant_enters(self, merchant: Merchant) -> None:
+        merchant.enter_world(self)
+        self.current_vessels.append(merchant)
 
     def launch_drone(self) -> None:
         t_0 = time.perf_counter()
@@ -242,18 +242,18 @@ class World:
         else:
             return 0
 
-    def create_arriving_ships(self) -> None:
+    def create_arriving_merchants(self) -> None:
         for _ in range(self.calculate_ships_entering()):
-            new_ship = generate_random_ship(self)
-            logger.debug(f"New ship: {new_ship.ship_id} is entering the AoI")
-            self.ship_enters(new_ship)
+            new_merchant = generate_random_merchant(self)
+            logger.debug(f"New ship: {new_merchant.ship_id} is entering the AoI")
+            self.merchant_enters(new_merchant)
 
     def calculate_ship_movements(self) -> None:
         ships_finished = []
 
         for ship in self.current_vessels:
             ship.make_move()
-            if ship.reached_destination:
+            if ship.left_world:
                 ships_finished.append(ship)
 
         # Remove ships that have reached their destination
@@ -278,7 +278,7 @@ class World:
                 uav.check_if_complete_maintenance()
 
         t_0 = time.perf_counter()
-        self.create_arriving_ships()
+        self.create_arriving_merchants()
         self.calculate_ship_movements()
         t_1 = time.perf_counter()
         self.time_spent_on_navy += (t_1 - t_0)
@@ -302,7 +302,6 @@ class World:
         logger.debug(f"End of iteration {self.world_time: .3f} \n")
 
     def update_weather_conditions(self):
-        # TODO: How to ensure that the nearby world is correlated, rather than individual pieces?
         """
         Updates the weather and samples sea states pending.
         :return:

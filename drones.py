@@ -143,7 +143,7 @@ class Drone:
 
     def make(self, model: str) -> None:
         logger.debug(f"Initiating drone of type {model}.")
-        for blueprint in constants.MODEL_DICTIONARIES:
+        for blueprint in constants.UAV_MODELS:
             if blueprint['name'] == model:
                 self.speed = blueprint['speed']
                 self.vulnerability = blueprint['vulnerability']
@@ -534,12 +534,13 @@ class Drone:
             locations.append(Point(x_loc, y_loc))
 
         for location in locations:
-            receptors = self.world.receptor_grid.select_receptors_in_radius(location, radius=self.radius)
+            receptors = self.world.receptor_grid.select_receptors_in_radius(
+                location, radius=self.radius*constants.LATITUDE_CONVERSION_FACTOR)
 
             for receptor in receptors:
                 if receptor.decay:  # To Check if receptor is not a boundary point
-                    receptor.pheromones += ((1 / max(location.distance_to_point(receptor.location), 0.1)) *
-                                            (self.pheromone_spread / self.world.splits_per_step))
+                    receptor.uav_pheromones += ((1 / max(location.distance_to_point(receptor.location), 0.1)) *
+                                                (self.pheromone_spread / self.world.splits_per_step))
                     # receptor.update_plot(self.world.ax, self.world.receptor_grid.cmap)
         t_1 = time.perf_counter()
         constants.time_spreading_pheromones += (t_1 - t_0)
@@ -612,7 +613,8 @@ class Drone:
         # Get weather conditions in area
         closest_receptor = self.world.receptor_grid.get_closest_receptor(ship.location)
         sea_state = closest_receptor.sea_state
-        sea_state_to_parameter = {1: 0.89,
+        sea_state_to_parameter = {0: 0.89,
+                                  1: 0.89,
                                   2: 0.77,
                                   3: 0.68,
                                   4: 0.62,
@@ -646,7 +648,7 @@ class Drone:
 
     def update_trail_route(self):
         if self.located_ship is not None:
-            if self.located_ship.reached_destination:
+            if self.located_ship.left_world:
                 logger.debug(f"UAV {self.uav_id} is forced to stop chasing {self.located_ship.ship_id} "
                              f"- reached destination.")
                 self.stop_trailing("Target Reached Destination")

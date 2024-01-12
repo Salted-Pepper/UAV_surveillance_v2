@@ -8,7 +8,7 @@ from perlin_noise import PerlinNoise
 import constants
 
 
-def fetch_weather_markov_chain(make_plots=True) -> dict:
+def fetch_weather_markov_chain(make_plots=True, steps=1) -> dict:
     import xarray as xr
     df = xr.open_dataset("wave_data.nc", engine="netcdf4").to_dataframe()
     """
@@ -36,7 +36,6 @@ def fetch_weather_markov_chain(make_plots=True) -> dict:
     df["swh_rounded_lag"] = df["swh_rounded"].shift(1)
     df["swh_rounded_lag_2"] = df["swh_rounded"].shift(2)
 
-    steps = 9
     df["swh_rounded_lag_steps"] = df["swh_rounded"].shift(steps)
 
     data = df[["swh_rounded", "swh_rounded_lag", "swh_rounded_lag_2", "swh_rounded_lag_steps"]].dropna()
@@ -89,8 +88,11 @@ def fetch_weather_markov_chain(make_plots=True) -> dict:
     for state_0 in states:
         matrix[int(state_0)] = {}
         for state_1 in states:
-
-            state_data = data_1[(data_1["swh_rounded"] == state_0) & (data_1["swh_rounded_lag"] == state_1)]
+            if steps == 1:
+                state_data = data_1[(data_1["swh_rounded"] == state_0) & (data_1["swh_rounded_lag"] == state_1)]
+            else:
+                state_data = data_steps[(data_steps["swh_rounded"] == state_0) &
+                                        (data_steps["swh_rounded_lag_steps"] == state_1)]
 
             if len(state_data) == 0:
                 transition_probability = 0
@@ -105,7 +107,7 @@ def fetch_weather_markov_chain(make_plots=True) -> dict:
     return matrix
 
 
-weather_transition_matrix = fetch_weather_markov_chain(False)
+weather_transition_matrix = fetch_weather_markov_chain(False, steps=3)
 
 
 def update_sea_states(world):

@@ -32,13 +32,13 @@ class Receptor:
         #  - also finetune value
 
         if in_polygon:
-            self.pheromones = 100
+            self.uav_pheromones = 100
             self.decay = False
         elif not is_in_area_of_interest(Point(x, y)):
-            self.pheromones = 100
+            self.uav_pheromones = 100
             self.decay = False
         else:
-            self.pheromones = np.random.uniform(0, 0.1)
+            self.uav_pheromones = np.random.uniform(0, 0.1)
             self.decay = True
 
         # Sea State Variables
@@ -71,14 +71,14 @@ class Receptor:
                                    self.adjacent_NW]
 
     def __str__(self):
-        return f"Receptor at: {self.location} - with pheromones {self.pheromones}"
+        return f"Receptor at: {self.location} - with pheromones {self.uav_pheromones}"
 
     def initiate_plot(self, axes, cmap):
         if not constants.PLOTTING_MODE:
             return axes
 
         self.patch = matplotlib.patches.Circle((self.location.x, self.location.y),
-                                               radius=0.05, color=cmap(self.pheromones / 100),
+                                               radius=0.05, color=cmap(self.uav_pheromones / 100),
                                                alpha=0.5, linewidth=None)
         axes.add_patch(self.patch)
         return axes
@@ -87,8 +87,8 @@ class Receptor:
         if not constants.PLOTTING_MODE:
             return
         if constants.RECEPTOR_PLOT_PARAMETER == "pheromones":
-            self.patch.set_facecolor(cmap(self.pheromones / 100))
-            self.patch.set_edgecolor(cmap(self.pheromones / 100))
+            self.patch.set_facecolor(cmap(self.uav_pheromones / 100))
+            self.patch.set_edgecolor(cmap(self.uav_pheromones / 100))
         elif constants.RECEPTOR_PLOT_PARAMETER == "sea_states":
             self.patch.set_facecolor(cmap(self.sea_state / 6))
             self.patch.set_edgecolor(cmap(self.sea_state / 6))
@@ -237,8 +237,7 @@ class ReceptorGrid:
 
         radius = max(h_space_between_receptors, v_space_between_receptors)
 
-        potential_receptors = self.select_receptors_in_radius(point, radius * 1.5)
-
+        potential_receptors = self.select_receptors_in_radius(point, radius*constants.LATITUDE_CONVERSION_FACTOR)
         dist = math.inf
 
         selected_receptor = None
@@ -250,16 +249,22 @@ class ReceptorGrid:
                 selected_receptor = receptor
 
         if selected_receptor is None:
-            raise ValueError(f"Failed to find suitable receptor at {point}.")
+            print(f"{potential_receptors=}, {selected_receptor=}, {dist=}")
+            point.add_point_to_plot(constants.axes_plot, color="purple")
+            radius_patch = matplotlib.patches.Circle((point.x, point.y),
+                                                     radius=radius,
+                                                     color="purple", alpha=0.1, linewidth=None)
+            constants.axes_plot.add_patch(radius_patch)
+            raise ValueError(f"Failed to find suitable receptor at {point} - {radius=} - {point.x, point.y}.")
 
         return selected_receptor
 
     def depreciate_pheromones(self):
         for receptor in self.receptors:
             if receptor.decay:
-                receptor.pheromones = (receptor.pheromones *
-                                       constants.PHEROMONE_DEPRECIATION_FACTOR_PER_TIME_DELTA
-                                       ** (1 / self.world.time_delta))
+                receptor.uav_pheromones = (receptor.uav_pheromones *
+                                           constants.PHEROMONE_DEPRECIATION_FACTOR_PER_TIME_DELTA
+                                           ** (1 / self.world.time_delta))
 
     def calculate_CoP(self, point: Point, radius: float) -> (float, list):
         """
@@ -280,7 +285,7 @@ class ReceptorGrid:
 
         CoP = 0
         for receptor in receptors:
-            CoP += (1 / max(0.1, calculate_distance(a=point, b=receptor.location))) * receptor.pheromones
+            CoP += (1 / max(0.1, calculate_distance(a=point, b=receptor.location))) * receptor.uav_pheromones
         # logger.debug(f"Calculated CoP at {point} with rad {radius}: {CoP} - from {len(receptors)} receptors.")
         return CoP, receptors
 
